@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- Without this, phones render the page at a simulated desktop width
+     (~980px) and zoom out to fit the screen — the page LOOKS "mobile" in
+     the sense of being tiny, but every max-width media query in style.css
+     sees that fake 980px width and never actually triggers. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trail Cam Species Library</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version('style.css') }}">
+<!-- Waymark JS (Track tab map). Waymark BUNDLES its own Leaflet and exposes
+     it as the `Waymark_L` global; on load it deliberately restores
+     `window.L` to whatever it was before, so a bare `L` is NOT available
+     here — use `Waymark_L`, or the Leaflet map instance at `viewer.map`.
+     jQuery is a hard requirement of Waymark and must load first. -->
+<link rel="stylesheet" href="https://www.ogis.org/waymark-js/dist/latest/css/waymark-js.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://www.ogis.org/waymark-js/dist/latest/js/waymark-js.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <div class="header-row">
+    <h1><span id="title-emoji">🦝</span> UCF Arboretum Trail Cam Species Library</h1>
+
+    <!-- Account menu: username+password sign-in (see /api/auth/* in app.py
+         and the "Account menu" section of script.js). No sign-up here —
+         accounts are added via manage_users.py on the server. -->
+    <div class="account-area">
+      <button type="button" id="account-btn" class="account-btn" title="Account" aria-haspopup="true" aria-expanded="false">
+        <!-- Default profile picture: generic head-and-shoulders silhouette -->
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <circle cx="12" cy="8.5" r="4" fill="currentColor"></circle>
+          <path d="M3.5 21c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z" fill="currentColor"></path>
+        </svg>
+      </button>
+
+      <div id="account-menu" class="account-menu hidden">
+        <div id="account-menu-signed-in" class="hidden">
+          <div class="account-menu-name" id="account-menu-name"></div>
+          <div class="account-menu-status" id="account-menu-status"></div>
+          <button type="button" id="account-auth-btn" class="account-auth-btn">Sign out</button>
+        </div>
+        <form id="account-login-form">
+          <div class="account-menu-name">Sign in</div>
+          <label for="account-login-username">Username</label>
+          <input type="text" id="account-login-username" autocomplete="username" required>
+          <label for="account-login-password">Password</label>
+          <input type="password" id="account-login-password" autocomplete="current-password" required>
+          <p id="account-login-error" class="account-login-error hidden"></p>
+          <button type="submit" class="account-auth-btn">Sign in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="upload">Upload</button>
+    <button class="tab-btn" data-tab="review">Review</button>
+    <button class="tab-btn" data-tab="library">Library</button>
+    <button class="tab-btn" data-tab="favorites">Favorites</button>
+    <button class="tab-btn" data-tab="spreadsheet">Spreadsheet</button>
+    <button class="tab-btn" data-tab="track">Track</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </div>
+
+  <!-- UPLOAD TAB -->
+  <section id="tab-upload" class="tab-panel active">
+    <!-- Hidden whenever a pending-upload-card exists (see the
+         MutationObserver on pendingUploadsList in script.js) — add-more-
+         folders-card below takes over as the way to add another once one
+         is already showing. -->
+    <div class="card" id="add-folder-card">
+      <label>Folder of videos/images</label>
+      <div class="folder-row">
+        <button id="browse-btn" type="button">+ Add folder…</button>
+        <!-- webkitdirectory: the only standard way for a browser to hand
+             back "everything in this folder" (as File objects) — those
+             bytes then have to be uploaded, since the server can't reach a
+             path on the user's own device. See startBatchUpload. -->
+        <input type="file" id="folder-input" webkitdirectory multiple hidden>
+      </div>
+      <p class="muted upload-tab-hint">
+        Each folder uploads independently as soon as you pick it — add
+        another right away without waiting for the first to finish.
+      </p>
+    </div>
+
+    <!-- One .pending-upload-card per folder picked, built and appended here
+         by createPendingUploadCard in script.js; removed again once its job
+         is submitted or its upload is cancelled. -->
+    <div id="pending-uploads-list"></div>
+
+    <!-- The inverse of add-folder-card above: hidden until at least one
+         pending-upload-card exists, then this is the way to add another
+         (one button here rather than one repeated inside every card). The
+         whole card IS the button, not a card wrapping one. -->
+    <button type="button" class="dashed-add-card hidden" id="add-more-folders-card">+ Add More Folders</button>
+
+    <!-- QUEUE + LIVE LOG (moved here from Library) -->
+    <div class="card" id="queue-panel">
+      <h3>Queue</h3>
+      <div id="queue-empty" class="muted">Nothing running or waiting.</div>
+      <ul id="queue-list" class="queue-list"></ul>
+
+      <div id="running-log-box" class="status-box hidden">
+        <div class="status-line">
+          <span id="running-log-label"></span>
+          <span class="spinner"></span>
+        </div>
+        <pre id="running-log-tail"></pre>
+      </div>
+    </div>
+
+    <div class="card" id="upload-history-panel">
+      <button id="upload-history-toggle" class="collapsible-toggle" type="button">
+        <span class="collapsible-arrow">▸</span> Upload History
+      </button>
+      <div id="upload-history-content" class="hidden">
+        <div id="upload-history-empty" class="muted hidden">No folders uploaded yet.</div>
+        <ul id="upload-history-list" class="upload-history-list"></ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- REVIEW TAB -->
+  <section id="tab-review" class="tab-panel">
+    <div class="card" id="review-progress-card">
+      <span id="review-progress"></span>
+    </div>
+
+    <div id="review-empty" class="muted hidden">All caught up! No unreviewed videos right now.</div>
+
+    <div id="review-content" class="review-layout hidden">
+      <div class="review-video-pane">
+        <video id="review-video-player" controls preload="metadata" class="hidden"></video>
+        <img id="review-photo-player" class="hidden" alt="">
+        <img id="review-bar-crop-img" class="bar-crop-inline-img hidden" alt="Cropped info bar">
+        <div class="review-nav-buttons">
+          <button id="review-prev-btn" class="review-nav-btn">← Previous</button>
+          <button id="review-next-btn" class="review-nav-btn review-next-primary">Next (Enter) →</button>
+        </div>
+      </div>
+
+      <div class="review-fields-pane">
+        <div class="review-species-row">
+          <div class="review-species-info">
+            <label>Species</label>
+            <div id="review-species-display" class="review-species-display"></div>
+          </div>
+          <button id="review-confirm-species-btn" class="confirm-btn">✓ Confirm</button>
+          <button id="review-edit-species-btn" class="edit-species-btn">Wrong? Edit</button>
+        </div>
+
+        <div class="review-fields-grid">
+          <label>Date<input type="text" id="review-field-date" placeholder="YYYY-MM-DD"></label>
+          <label>Time<input type="text" id="review-field-time" placeholder="HH:MM:SS"></label>
+          <label>Location<input type="text" id="review-field-location"></label>
+          <!-- Temperature moved up into the slot Diel Period used to occupy.
+               Diel Period is now derived from date + time + the location's
+               coordinates (see compute_diel_period in app.py), so there's
+               nothing here to type. -->
+          <label>Temperature<input type="text" id="review-field-temperature"></label>
+
+          <div class="review-full-width review-count-row">
+            <label for="review-field-count">Count</label>
+            <div class="review-count-stepper">
+              <button type="button" id="review-count-down" class="review-count-btn" aria-label="Decrease count">−</button>
+              <input type="number" min="0" id="review-field-count">
+              <button type="button" id="review-count-up" class="review-count-btn" aria-label="Increase count">+</button>
+            </div>
+          </div>
+          <label class="review-full-width">File Name<input type="text" id="review-field-filename"></label>
+          <label class="review-full-width">Notes<input type="text" id="review-field-notes"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIBRARY TAB -->
+  <section id="tab-library" class="tab-panel">
+    <!-- GROUP VIEW: one card per species, click to drill into its videos -->
+    <div id="lib-groups-view">
+      <div id="lib-group-cards" class="species-group-cards"></div>
+      <div id="lib-groups-empty" class="muted hidden">No videos processed yet.</div>
+    </div>
+
+    <!-- DETAIL VIEW: videos for whichever species card was clicked -->
+    <div id="lib-detail-view" class="hidden">
+      <div class="lib-detail-toolbar">
+        <h3 id="lib-detail-heading"></h3>
+        <button type="button" id="lib-settings-btn" class="secondary-btn lib-toolbar-btn hidden" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Settings
+        </button>
+      </div>
+      <div id="lib-grid" class="video-grid"></div>
+      <div id="lib-empty" class="muted hidden">No videos match this filter yet.</div>
+    </div>
+  </section>
+
+  <!-- FAVORITES TAB -->
+  <section id="tab-favorites" class="tab-panel">
+    <div class="card">
+      <label>Filter by species</label>
+      <select id="fav-species-filter"></select>
+    </div>
+
+    <div id="fav-grid" class="video-grid"></div>
+    <div id="fav-empty" class="muted hidden">No favorited videos yet — star some from the Library tab.</div>
+  </section>
+
+  <!-- SPREADSHEET TAB -->
+  <section id="tab-spreadsheet" class="tab-panel">
+    <div class="card">
+      <label>Search</label>
+      <input type="text" id="spreadsheet-search" placeholder="Search all fields…">
+    </div>
+
+    <div class="card">
+      <label>Sort</label>
+      <div id="spreadsheet-sorts-list"></div>
+      <div id="spreadsheet-sorts-empty" class="muted hidden">No sorting applied — showing default order.</div>
+      <button id="add-sort-btn" type="button">+ Add sort</button>
+    </div>
+
+    <div class="card">
+      <div class="spreadsheet-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0;">Spreadsheet View</h3>
+        <button id="export-csv-btn" class="export-btn">Export to CSV</button>
+      </div>
+
+      <!-- Inner card: the table gets its own bordered panel nested inside
+           the outer card that holds the heading + Export button. -->
+      <div class="card">
+      <table id="spreadsheet-table" class="spreadsheet">
+        <thead>
+          <tr>
+            <th class="arrow-col"></th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Location</th>
+            <th>Species</th>
+            <th>Count</th>
+            <th>Notes</th>
+            <th>File Name</th>
+            <th>Diel Period</th>
+            <th id="temperature-header" class="temp-toggle-header" title="Click to switch between °F and °C">Temperature (<span id="temp-unit-label">F</span>)</th>
+            <th class="menu-col"></th>
+          </tr>
+        </thead>
+        <tbody id="spreadsheet-body"></tbody>
+      </table>
+      <div id="spreadsheet-empty" class="muted hidden">No videos yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRACK TAB -->
+  <section id="tab-track" class="tab-panel">
+    <div class="track-toolbar">
+      <div class="track-filter-field">
+        <label for="track-filter-start">Start</label>
+        <input type="datetime-local" id="track-filter-start">
+        <button type="button" class="track-filter-clear-btn" data-target="track-filter-start" title="Clear">✕</button>
+      </div>
+      <div class="track-filter-field">
+        <label for="track-filter-end">End</label>
+        <input type="datetime-local" id="track-filter-end">
+        <button type="button" class="track-filter-clear-btn" data-target="track-filter-end" title="Clear">✕</button>
+      </div>
+      <div class="track-filter-field">
+        <label for="track-filter-species">Animal</label>
+        <select id="track-filter-species">
+          <option value="">All animals</option>
+        </select>
+      </div>
+
+      <div class="track-filter-field">
+        <label>Locations</label>
+        <div class="track-location-filter">
+          <button type="button" id="track-location-filter-btn">All locations</button>
+          <div id="track-location-filter-menu" class="track-location-filter-menu hidden">
+            <div class="track-location-filter-actions">
+              <button type="button" id="track-location-select-all">Select all</button>
+              <button type="button" id="track-location-select-none">Clear all</button>
+            </div>
+            <div id="track-location-filter-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <button id="track-simulate-btn" type="button" class="secondary-btn track-simulate-btn" title="Coming soon">Simulate</button>
+    </div>
+    <div class="track-layout">
+      <div class="track-map-wrap">
+        <div id="track-map"></div>
+        <button type="button" id="track-missing-overlay" class="track-missing-overlay hidden"></button>
+      </div>
+      <div id="track-media-list" class="track-media-list"></div>
+      <div id="track-map-empty" class="track-media-list-empty muted hidden">Entries will appear here and their locations will be displayed on the map once you have an entry with location data.</div>
+    </div>
+  </section>
+
+  <!-- SETTINGS TAB -->
+  <section id="tab-settings" class="tab-panel">
+    <div class="settings-layout">
+      <nav class="settings-nav" aria-label="Settings categories">
+        <div class="settings-search-wrap">
+          <svg class="settings-search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <circle cx="10" cy="10" r="7"></circle><line x1="15.5" y1="15.5" x2="21" y2="21"></line>
+          </svg>
+          <input type="search" id="settings-search" placeholder="Search settings" autocomplete="off" aria-label="Search settings" aria-controls="settings-search-results">
+        </div>
+
+        <div id="settings-category-list" class="settings-category-list">
+          <button type="button" class="settings-category-btn" data-settings-category="general">General</button>
+          <button type="button" class="settings-category-btn" data-settings-category="storage">Storage</button>
+          <button type="button" class="settings-category-btn" data-settings-category="locations">Locations</button>
+        </div>
+
+        <div id="settings-search-results" class="settings-search-results hidden" role="listbox" aria-label="Matching settings"></div>
+      </nav>
+
+      <div class="settings-content">
+        <!-- GENERAL -->
+        <div class="settings-pane" data-settings-pane="general" data-pane-title="General">
+          <h2 class="settings-pane-title">General</h2>
+
+          <div class="settings-section" data-search-title="Temperature unit" data-search-keywords="fahrenheit celsius °F °C degrees">
+            <label>Temperature unit</label>
+            <div class="temp-unit-toggle-group">
+              <button type="button" id="settings-temp-f-btn" class="temp-unit-btn">°F</button>
+              <button type="button" id="settings-temp-c-btn" class="temp-unit-btn">°C</button>
+            </div>
+          </div>
+
+          <div class="settings-section" data-search-title="Optical Character Recognition (OCR)" data-search-keywords="ocr info bar text date time">
+            <label>Optical Character Recognition (OCR)</label>
+
+            <div class="ocr-disable-row" data-search-title="Disable OCR" data-search-keywords="turn off ocr manual date time temperature">
+              <div class="ocr-disable-text">
+                <span class="ocr-disable-title">Disable OCR</span>
+                <span class="ocr-disable-hint">Manually add data for Date, Time, Location, Temperature, and Diel Period in the Spreadsheet tab</span>
+              </div>
+              <button type="button" id="ocr-disable-toggle" class="toggle-switch" role="switch" aria-checked="false" aria-label="Disable OCR">
+                <span class="toggle-switch-knob"></span>
+              </button>
+            </div>
+
+            <div id="ocr-presets-subsection" class="ocr-presets-subsection" data-search-title="Manage OCR Presets" data-search-keywords="ocr presets wizard crop box">
+              <label class="ocr-presets-subheading">Manage OCR Presets</label>
+              <div id="ocr-presets-list" class="ocr-presets-list"></div>
+            </div>
+          </div>
+
+          <div class="settings-section" data-search-title="Review marks" data-search-keywords="marked for review badge queue">
+            <label>Review marks</label>
+            <p class="settings-section-hint">Clears the "marked for review" flag on every video at once — they'll no longer count toward the review badge or appear in the Review tab queue unless re-marked individually.</p>
+            <button type="button" id="clear-all-marks-btn" class="secondary-btn" data-search-title="Clear all marked for review" data-search-keywords="unmark reset review">Clear all marked for review</button>
+          </div>
+        </div>
+
+        <!-- STORAGE -->
+        <div class="settings-pane" data-settings-pane="storage" data-pane-title="Storage">
+          <h2 class="settings-pane-title">Storage</h2>
+
+          <div class="settings-section" data-search-title="Drive space" data-search-keywords="storage disk capacity free used full">
+            <label>Drive space</label>
+            <div class="storage-meter" aria-hidden="true"><div id="storage-meter-fill" class="storage-meter-fill"></div></div>
+            <p id="storage-usage-text" class="storage-usage-text">Loading…</p>
+          </div>
+
+          <div class="settings-section" data-search-title="Trash" data-search-keywords="blank delete videos files">
+            <label>Trash</label>
+            <p class="settings-section-hint">Blank entries that are no longer marked for review, aren't favorited, and have no notes. Emptying the trash permanently deletes their video files from the server — this can't be undone.</p>
+            <p id="storage-trash-text" class="storage-trash-text"></p>
+            <button type="button" id="empty-trash-btn" class="secondary-btn" data-search-title="Empty trash" data-search-keywords="delete blank free space">Empty trash</button>
+            <p id="empty-trash-result" class="storage-trash-result hidden"></p>
+
+            <div class="ocr-disable-row storage-auto-row" data-search-title="Auto-empty trash" data-search-keywords="automatic delete threshold capacity full">
+              <div class="ocr-disable-text">
+                <span class="ocr-disable-title">Auto-empty trash</span>
+                <span class="ocr-disable-hint">Empty the trash automatically after a job finishes if the drive is at least
+                  <select id="auto-empty-threshold" class="auto-empty-threshold" aria-label="Auto-empty threshold"></select> full</span>
+              </div>
+              <button type="button" id="auto-empty-toggle" class="toggle-switch" role="switch" aria-checked="false" aria-label="Auto-empty trash">
+                <span class="toggle-switch-knob"></span>
+              </button>
+            </div>
+            <p id="last-auto-empty-text" class="storage-trash-result hidden"></p>
+          </div>
+        </div>
+
+        <!-- LOCATIONS -->
+        <div class="settings-pane" data-settings-pane="locations" data-pane-title="Locations">
+          <h2 class="settings-pane-title">Locations</h2>
+
+          <div class="settings-section" data-search-title="Add new locations" data-search-keywords="create camera site new">
+            <label>Add new locations</label>
+            <div class="add-location-modes" role="tablist" aria-label="How to add locations">
+              <button type="button" class="add-location-mode-btn" role="tab" data-add-location-mode="single" aria-controls="add-location-single">Single</button>
+              <button type="button" class="add-location-mode-btn" role="tab" data-add-location-mode="batch" aria-controls="add-location-batch">Batch</button>
+            </div>
+
+            <form id="add-location-single" class="add-location-panel" role="tabpanel" data-mode-panel="single" novalidate
+                  data-search-title="Add new location" data-search-keywords="create camera site single one latitude longitude">
+              <div class="add-location-form">
+                <div class="add-location-field add-location-field-name">
+                  <label for="add-location-name">Name</label>
+                  <input type="text" id="add-location-name" placeholder="e.g. North Trail" autocomplete="off">
+                </div>
+                <div class="add-location-field">
+                  <label for="add-location-lat">Latitude</label>
+                  <input type="number" step="any" id="add-location-lat" placeholder="28.6024">
+                </div>
+                <div class="add-location-field">
+                  <label for="add-location-lon">Longitude</label>
+                  <input type="number" step="any" id="add-location-lon" placeholder="-81.1966">
+                </div>
+                <button type="submit" id="add-location-submit-btn">Add</button>
+              </div>
+              <p id="add-location-status" class="add-location-status hidden" role="status"></p>
+            </form>
+
+            <div id="add-location-batch" class="add-location-panel hidden" role="tabpanel" data-mode-panel="batch">
+              <div id="locations-csv-dropzone" class="locations-csv-dropzone"
+                   data-search-title="Import locations from CSV" data-search-keywords="csv upload bulk import batch many">
+                <span>Drop a CSV file here or</span>
+                <label for="locations-csv-input" class="secondary-btn locations-csv-label">Choose file</label>
+                <input type="file" id="locations-csv-input" accept=".csv,text/csv" class="hidden">
+              </div>
+              <p class="locations-csv-help">
+                Columns: <code>name</code>, <code>lat</code>, <code>lon</code> ·
+                <button type="button" id="locations-csv-template-btn" class="locations-csv-template-btn" data-search-title="Download CSV template" data-search-keywords="csv example format">Download CSV template</button>
+              </p>
+              <div id="locations-import-result" class="locations-import-result hidden"></div>
+
+              <div id="locations-import-confirm" class="locations-import-confirm hidden">
+                <p id="locations-import-confirm-intro" class="locations-import-confirm-intro"></p>
+                <div id="locations-import-confirm-list" class="locations-import-confirm-list"></div>
+                <div class="locations-import-confirm-actions">
+                  <button type="button" id="locations-import-confirm-btn">Import anyway (overwrite)</button>
+                  <button type="button" id="locations-import-confirm-cancel-btn" class="secondary-btn">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section" data-search-title="Manage Locations" data-search-keywords="camera sites latitude longitude coordinates rename edit delete">
+            <label>Manage Locations</label>
+            <p class="settings-section-hint">
+              Name, latitude, and longitude are all required to save a location. Renaming a
+              location here updates every matching entry in the Spreadsheet too.
+            </p>
+
+            <div class="locations-list-header">
+              <span>Name</span>
+              <span>Latitude</span>
+              <span>Longitude</span>
+              <span></span>
+              <span></span>
+            </div>
+            <div id="locations-list" class="locations-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<template id="location-row-template">
+  <div class="location-row">
+    <input type="text" class="location-row-name" placeholder="Location name">
+    <input type="number" step="any" class="location-row-lat" placeholder="Latitude">
+    <input type="number" step="any" class="location-row-lon" placeholder="Longitude">
+    <button type="button" class="location-row-save-btn secondary-btn">Save</button>
+    <button type="button" class="location-row-delete-btn" title="Delete location">Delete</button>
+  </div>
+</template>
+
+<template id="track-media-card-template">
+  <div class="track-media-card">
+    <div class="track-media-card-top">
+      <span class="track-media-card-species"></span>
+      <span class="track-media-card-location"></span>
+    </div>
+    <div class="track-media-card-bottom">
+      <span class="track-media-card-date"></span>
+      <span class="track-media-card-time"></span>
+      <span class="track-media-card-temp"></span>
+    </div>
+    <button type="button" class="track-media-card-zoom-btn" title="Play">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="10" cy="10" r="7"></circle>
+        <line x1="21" y1="21" x2="15.5" y2="15.5"></line>
+      </svg>
+    </button>
+  </div>
+</template>
+
+<!-- Video card template, cloned by JS for both Library and Favorites -->
+<template id="video-card-template">
+  <div class="video-card">
+    <span class="unreviewed-corner-bubble hidden" title="Not yet reviewed">!</span>
+    <button class="card-zoom-btn hidden" title="View larger">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="10" cy="10" r="7"></circle>
+        <line x1="21" y1="21" x2="15.5" y2="15.5"></line>
+      </svg>
+    </button>
+    <video controls preload="none" class="hidden"></video>
+    <img class="card-photo hidden" alt="">
+    <div class="card-video-thumb-wrap hidden">
+      <img class="card-video-thumb" alt="">
+      <div class="card-play-overlay">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>
+    <div class="video-card-body">
+      <div class="video-filename"></div>
+      <div class="video-tag-row">
+        <div class="tag-left">
+          <span class="species-badge"></span>
+          <span class="verified-info hidden">
+            <span class="verified-info-icon">i</span>
+            <span class="verified-info-tooltip"></span>
+          </span>
+          <!-- Same info as the hover bubble, as a plain tag — used on phones
+               in the signed-out view, where there's no hover (see style.css) -->
+          <span class="verified-tag"></span>
+        </div>
+      </div>
+      <div class="correction-row">
+        <select class="correction-select"></select>
+        <!-- All four labels share one grid cell, so the button is always as
+             wide as the widest; data-mode (see updateCorrectionButton) picks
+             which one shows. -->
+        <button class="save-correction-btn" data-mode="save">
+          <span data-label="save">Save</span>
+          <span data-label="saved">Saved</span>
+          <span data-label="verify">Verify</span>
+          <span data-label="unverify">Unverify</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Card info panel: appears next to an expanded card (triggered by
+     clicking the card's media directly — see renderGrid's triggerExpand),
+     holding the Count/Notes fields, matching that card's stretched height
+     via CSS Grid's default row-stretching behavior. -->
+<template id="card-info-panel-template">
+  <div class="card-info-panel">
+    <button class="card-info-close-btn" title="Close">✕</button>
+    <div class="card-info-toggle-row">
+      <button type="button" class="card-info-review-btn"></button>
+      <button type="button" class="card-info-favorite-btn"></button>
+    </div>
+    <div class="card-info-field">
+      <label>Count</label>
+      <input type="number" class="card-info-count" min="0">
+    </div>
+    <div class="card-info-field card-info-field-notes">
+      <label>Notes</label>
+      <textarea class="card-info-notes"></textarea>
+    </div>
+    <button type="button" class="card-info-delete-btn" title="Delete from library">Delete</button>
+  </div>
+</template>
+
+<!-- "Add new species" modal: search the FULL SpeciesNet taxonomy, including
+     species with zero clips so far -->
+<div id="species-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Assign a species</h3>
+      <button id="modal-close-btn" class="modal-close">✕</button>
+    </div>
+    <input type="text" id="modal-search" placeholder="Search all SpeciesNet species…">
+    <div id="modal-species-list" class="modal-species-list"></div>
+  </div>
+</div>
+
+<!-- Shared floating row-actions menu for the Spreadsheet tab. One instance,
+     repositioned and rebound to whichever row's "..." button was clicked —
+     rendered as a fixed-position overlay so it's never clipped by the
+     table's own layout/scrolling. -->
+<div id="row-context-menu" class="row-context-menu hidden">
+  <button id="ctx-show-video-btn">Show media</button>
+  <button id="ctx-favorite-btn">☆ Favorite</button>
+  <button id="ctx-copy-btn">Copy row</button>
+  <button id="ctx-copy-all-btn">Copy entire table</button>
+  <button id="ctx-delete-btn" class="menu-delete-btn">Delete</button>
+</div>
+
+<!-- Add New Location: opened from the Upload tab's Location dropdown when
+     "+ Add new location" is selected. On save, the dropdown is refreshed
+     and set to the new location; on cancel, the dropdown reverts. -->
+<div id="add-location-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Add New Location</h3>
+      <button id="add-location-modal-close-btn" class="modal-close">✕</button>
+    </div>
+    <div class="add-location-modal-form">
+      <label>Name</label>
+      <input type="text" id="add-location-modal-name" placeholder="Location name" readonly>
+      <label>Latitude</label>
+      <input type="number" step="any" id="add-location-modal-lat" placeholder="Latitude">
+      <label>Longitude</label>
+      <input type="number" step="any" id="add-location-modal-lon" placeholder="Longitude">
+      <button type="button" id="add-location-modal-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- OCR configuration wizard, opened from the Upload tab's OCR Settings dropdown -->
+<div id="ocr-wizard-modal" class="modal-overlay hidden">
+  <div class="modal-box ocr-wizard-box">
+    <div class="modal-header">
+      <h3 id="ocr-wizard-title">Configure OCR</h3>
+      <button id="ocr-wizard-close-btn" class="modal-close">✕</button>
+    </div>
+
+    <p id="ocr-wizard-instructions" class="ocr-wizard-instructions"></p>
+
+    <div class="ocr-wizard-toolbar">
+      <label class="ocr-wizard-magnifier-toggle">
+        <input type="checkbox" id="ocr-wizard-magnifier-toggle" checked>
+        Magnifier
+      </label>
+      <button type="button" id="ocr-wizard-reset-btn" class="ocr-wizard-reset-btn" disabled>Reset selection</button>
+    </div>
+
+    <div id="ocr-wizard-canvas-wrap" class="ocr-wizard-canvas-wrap">
+      <canvas id="ocr-wizard-canvas"></canvas>
+      <canvas id="ocr-wizard-magnifier" width="160" height="160" class="ocr-wizard-magnifier"></canvas>
+    </div>
+
+    <div id="ocr-wizard-confirm-step" class="hidden">
+      <div id="ocr-wizard-previews" class="ocr-wizard-previews"></div>
+      <label>Settings name</label>
+      <input type="text" id="ocr-wizard-config-name" placeholder="e.g. Bushnell Core S-4K">
+    </div>
+
+    <div class="ocr-wizard-nav">
+      <button id="ocr-wizard-back-btn" type="button">← Back</button>
+      <button id="ocr-wizard-next-btn" type="button" class="ocr-wizard-primary">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category settings, opened from the Settings button next to the title
+     in a drilled-into Library category. Every change saves immediately,
+     so there's no Save button — just close. -->
+<div id="category-settings-modal" class="modal-overlay hidden">
+  <div class="modal-box category-settings-box" role="dialog" aria-modal="true" aria-labelledby="category-settings-title">
+    <div class="modal-header">
+      <h3 id="category-settings-title">Category settings</h3>
+      <button type="button" id="category-settings-close-btn" class="modal-close" aria-label="Close">✕</button>
+    </div>
+
+    <div class="category-settings-row">
+      <div class="category-settings-text">
+        <span class="category-settings-label">Private</span>
+        <span class="category-settings-hint">Hidden from anyone who isn't signed in.</span>
+      </div>
+      <button type="button" id="category-private-toggle" class="toggle-switch private-toggle" role="switch" aria-checked="false" aria-label="Private category">
+        <span class="toggle-switch-knob"></span>
+      </button>
+    </div>
+
+    <div class="category-settings-cover">
+      <span class="category-settings-label">Cover photo</span>
+      <span class="category-settings-hint">Shown on this category's tile in the Library.</span>
+      <div class="category-cover-editor">
+        <div id="category-cover-preview" class="species-group-card category-cover-preview" aria-hidden="true"></div>
+        <div class="category-cover-actions">
+          <label for="category-cover-input" id="category-cover-upload-label" class="secondary-btn category-cover-upload">Upload cover photo</label>
+          <input type="file" id="category-cover-input" accept="image/jpeg,image/png,image/webp" class="visually-hidden">
+          <button type="button" id="category-cover-remove-btn" class="category-cover-remove hidden">Remove cover</button>
+          <p id="category-cover-status" class="category-cover-status hidden" role="status"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Video popup, shown from the Spreadsheet tab's "Show video" menu option -->
+<div id="video-modal" class="modal-overlay hidden">
+  <div class="video-modal-box">
+    <button id="video-modal-close-btn" class="modal-close video-modal-close">✕</button>
+    <video id="video-modal-player" controls class="hidden"></video>
+    <img id="video-modal-photo" class="hidden" alt="">
+  </div>
+</div>
+
+<footer class="app-credit">
+  <p>Created by <strong>Connor Sapp</strong> and <strong>Zach Vernon</strong>, UCF Arboretum Web and App Team, 2026-27</p>
+  <p><a href="https://github.com/cwsapp05/ArbCameraTrapCV/" target="_blank" rel="noopener noreferrer">View source on GitHub</a></p>
+</footer>
+
+<script src="{{ url_for('static', filename='script.js') }}?v={{ asset_version('script.js') }}"></script>
+</body>
+</html>

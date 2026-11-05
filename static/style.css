@@ -1,0 +1,2917 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f4f5f7;
+  margin: 0;
+  padding: 2rem;
+  color: #1f2328;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+h1 { font-size: 1.4rem; margin: 0; }
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+h3 { font-size: 0.95rem; margin: 0 0 0.6rem 0; }
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #d9dde3;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: #57606a;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+  color: #1f2328;
+  border-bottom: 2px solid #2563eb;
+  font-weight: 600;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.card {
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.dashed-add-card {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: 2px dashed #2563eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  color: #2563eb;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: normal;
+}
+.dashed-add-card:hover { background: rgba(37, 99, 235, 0.06); }
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #444b53;
+  margin-bottom: 0.35rem;
+  margin-top: 0.75rem;
+}
+label:first-child { margin-top: 0; }
+
+input[type="text"], input[type="password"], select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d0d5dc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.folder-row { display: flex; gap: 0.5rem; }
+.folder-row input { flex: 1; }
+
+.upload-tab-hint {
+  margin-top: 0.6rem;
+  margin-bottom: 0;
+}
+
+.pending-upload-card .pending-upload-folder {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.upload-progress-wrap {
+  margin-top: 0.9rem;
+}
+
+.upload-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.upload-progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: #e2e5ea;
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #2563eb;
+  transition: width 0.15s ease-out;
+}
+
+.upload-progress-label {
+  display: block;
+  margin-top: 0.4rem;
+}
+
+/* Same look as .cancel-job-btn (Queue panel's "cancel processing" button) —
+   a small red outline pill, not a solid button, so cancelling an upload
+   doesn't visually compete with Start Processing/Cancel Upload's more
+   prominent filled buttons. */
+.cancel-upload-btn {
+  background: none;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.cancel-upload-btn:hover { background: #fef2f2; }
+
+.upload-location-field-wrap {
+  margin-top: 1rem;
+}
+
+.upload-ocr-field-wrap {
+  margin-top: 1rem;
+}
+
+
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover { background: #1d4ed8; }
+button:disabled { background: #a9b4c2; cursor: not-allowed; }
+
+.secondary-btn {
+  background: #57606a;
+}
+.secondary-btn:hover { background: #444b53; }
+
+.run-btn { display: block; margin-top: 1.1rem; width: 100%; }
+
+.upload-storage-warning {
+  margin-top: 0.8rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #7f1d1d;
+  font-size: 0.85rem;
+}
+.upload-storage-warning strong { display: block; color: #b91c1c; margin-bottom: 0.3rem; }
+.upload-storage-warning p { margin: 0 0 0.5rem; }
+.upload-storage-warning-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.7rem; }
+
+.status-box {
+  margin-top: 1rem;
+  background: #f6f7f9;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+  padding: 0.8rem;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d0d5dc;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#log-tail {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  color: #444b53;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+#run-done {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  background: #ecfdf3;
+  border: 1px solid #b7ebc6;
+  border-radius: 8px;
+}
+
+.hidden { display: none !important; }
+.muted { color: #8a929c; font-size: 0.85rem; }
+
+/* ---- Queue panel ---- */
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* ---- Upload History ---- */
+.collapsible-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: #1f2328;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+}
+.collapsible-toggle:hover { background: none; color: #2563eb; }
+
+.collapsible-arrow {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: #8a929c;
+  transition: transform 0.15s;
+}
+.collapsible-arrow.expanded { transform: rotate(90deg); }
+
+#upload-history-content { margin-top: 0.7rem; }
+
+.upload-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  background: #f6f7f9;
+  font-size: 0.85rem;
+}
+
+.history-folder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0; /* lets text-overflow work inside a flex child */
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.history-time {
+  font-size: 0.75rem;
+  color: #8a929c;
+  white-space: nowrap;
+}
+
+.history-status-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.history-status-badge.status-done { background: #dcfce7; color: #15803d; }
+.history-status-badge.status-error { background: #fee2e2; color: #b91c1c; }
+.history-status-badge.status-cancelled { background: #f1f3f5; color: #57606a; }
+.history-status-badge.status-cancelling { background: #fef3c7; color: #92400e; }
+.history-status-badge.status-running { background: #dbeafe; color: #1d4ed8; }
+.history-status-badge.status-queued { background: #f1f3f5; color: #57606a; }
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  background: #f6f7f9;
+  font-size: 0.85rem;
+}
+.queue-item.running { background: #eff6ff; border: 1px solid #bfdbfe; }
+
+.queue-folder {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.queue-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.badge-running { background: #dbeafe; color: #1d4ed8; }
+.badge-queued { background: #f1f3f5; color: #57606a; }
+
+.queue-right { display: flex; align-items: center; gap: 0.5rem; }
+
+.cancel-job-btn {
+  background: none;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+}
+.cancel-job-btn:hover { background: #fef2f2; }
+.cancel-job-btn:disabled { color: #b0b6bd; border-color: #e2e5ea; background: none; cursor: not-allowed; }
+
+/* ---- Video grid / cards ---- */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-auto-flow: dense; /* backfills any gap left when the expanded-row
+                            wrapper (see .expanded-row-wrapper) forces a
+                            full-width row break — a no-op when every card
+                            is the same size, which is the normal case */
+  gap: 1rem;
+}
+
+.video-card {
+  position: relative;
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Brief highlight on the card that was just closed (see collapseCardInfoPanel),
+   so it's easy to spot again once the layout reflows back to normal. Uses
+   outline rather than box-shadow — .video-card has overflow:hidden for its
+   rounded thumbnail corners, which would otherwise clip a box-shadow at
+   the card's edges; outlines aren't affected by overflow clipping. */
+.video-card.just-closed {
+  animation: card-just-closed-fade 1.8s ease-out;
+}
+@keyframes card-just-closed-fade {
+  0% { outline: 3px solid rgba(37, 99, 235, 0.7); outline-offset: 2px; }
+  100% { outline: 3px solid rgba(37, 99, 235, 0); outline-offset: 2px; }
+}
+
+.video-card video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: black;
+  display: block;
+  cursor: pointer;
+}
+
+.video-card video.clickable-video { cursor: pointer; }
+
+.video-card .card-photo {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: black;
+  display: block;
+  cursor: pointer;
+}
+
+.card-video-thumb-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: black;
+  cursor: pointer;
+}
+.card-video-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.card-play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* purely a visual affordance — the whole card's 📝 button drives expansion, not a click here */
+}
+
+.video-card-body { padding: 0.7rem 0.8rem; }
+
+.video-filename {
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 0.4rem;
+}
+
+.video-tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.tag-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.species-badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #15803d;
+}
+.species-badge.blank { background: #f1f3f5; color: #8a929c; }
+
+.verified-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+}
+
+.verified-info-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verified-info-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2328;
+  color: white;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* small downward-pointing arrow from the tooltip to the icon */
+.verified-info-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1f2328;
+}
+
+.verified-info:hover .verified-info-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Plain-tag form of the verified marker. Hidden by default; the phone
+   signed-out rules at the end of this file swap it in for the hover bubble. */
+.verified-tag {
+  display: none;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 600;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Corner overlay, matching the species-group-card bubble's look — but kept
+   INSIDE the card's bounds (no negative offsets) since .video-card has
+   overflow:hidden for its rounded corners, which would otherwise clip a
+   bubble poking past the edge the way the group-card one does. */
+.unreviewed-corner-bubble {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  background: #2563eb;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+.card-zoom-btn {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 5;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+.card-zoom-btn:hover { background: rgba(0, 0, 0, 0.65); }
+
+/* Expanded card + its adjacent info panel (see .video-card[data-video-id] /
+   .card-info-panel — expansion is now triggered by clicking the card's
+   media directly, see renderGrid). These live inside a full-row wrapper
+   (.expanded-row-wrapper) rather than being spaced via grid-column spans
+   directly on the outer auto-fill grid — that grid's column COUNT changes
+   with screen width, so "3 columns + 2 columns" wouldn't reliably add up
+   to the full row width at every size; a dedicated full-width wrapper with
+   an internal 3:2 flex split does. */
+.expanded-row-wrapper {
+  grid-column: 1 / -1; /* the entire row, regardless of how many columns exist */
+  display: flex;
+  gap: 1rem;
+}
+.expanded-row-wrapper .video-card.expanded {
+  flex: 3 1 0;
+  min-width: 0; /* lets it shrink below its content's natural width inside the flex row */
+}
+
+.card-info-panel {
+  flex: 2 1 0;
+  position: relative;
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 2.2rem 1rem 3.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  /* No explicit height set — it's a flex sibling of the expanded card
+     inside .expanded-row-wrapper; align-items:stretch (flexbox's default)
+     makes it match the card's height automatically. */
+}
+
+.card-info-delete-btn {
+  position: absolute;
+  bottom: 0.8rem;
+  right: 0.8rem;
+  background: white;
+  color: #ef4444;
+  border: 1.5px solid #fca5a5;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.card-info-delete-btn:hover { background: #fef2f2; }
+
+.card-info-toggle-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.card-info-toggle-row button {
+  flex: 1;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1.5px solid #e2e5ea;
+  background: #f6f7f9;
+  color: #57606a;
+}
+
+.card-info-review-btn.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+.card-info-review-btn.active:hover { background: #1d4ed8; }
+
+.card-info-favorite-btn.active {
+  background: #f5c518;
+  color: #4a3b00;
+  border-color: #f5c518;
+}
+.card-info-favorite-btn.active:hover { background: #e0b213; }
+
+.card-info-close-btn {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  color: #57606a;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  border-radius: 4px;
+}
+.card-info-close-btn:hover { background: #f1f3f5; color: #1f2328; }
+
+.card-info-field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #57606a;
+  margin-bottom: 0.35rem;
+}
+
+.card-info-field input,
+.card-info-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.card-info-field-notes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* lets the textarea below actually shrink/grow within a flex column instead of overflowing */
+}
+.card-info-field-notes textarea {
+  flex: 1;
+  resize: none;
+  min-height: 80px;
+}
+
+.correction-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.correction-row select { flex: 1; padding: 0.4rem 0.5rem; font-size: 0.8rem; }
+
+/* ---- Review tab ---- */
+#review-progress-card {
+  padding: 0.6rem 1.1rem;
+  font-size: 0.85rem;
+  color: #57606a;
+  font-weight: 600;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 1.2rem;
+  align-items: start;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+@media (max-width: 800px) {
+  .review-layout { grid-template-columns: 1fr; }
+}
+
+/* ---- Mobile ----
+   Signed-out visitors only ever see Library/Favorites (see SIGNED_OUT_TABS
+   in script.js), so this is effectively their whole app on a phone — worth
+   treating as its own pass rather than just letting the desktop grid
+   breakpoints fall where they may. Everything here still applies if
+   someone happens to sign in on a phone too; there's no separate
+   signed-in-on-mobile layout. */
+@media (max-width: 640px) {
+  body { padding: 1rem; }
+
+  h1 { font-size: 1.6rem; }
+  #title-emoji { font-size: 1.4rem; }
+
+  .tab-btn { font-size: 1.1rem; padding: 0.7rem 0.9rem; }
+
+  /* Signed out there are only two tabs (Library, Favorites) — split the
+     row evenly between them instead of leaving them bunched at the left.
+     Signed in, the full tab set is too long to stretch. */
+  body.signed-out .tabs { gap: 0; }
+  body.signed-out .tab-btn { flex: 1; text-align: center; }
+
+  /* One video per row — a multi-column grid of already-small thumbnails
+     just makes every video harder to make out on a phone. */
+  .video-grid { grid-template-columns: 1fr; }
+
+}
+
+.review-layout.review-swipe-exit-left { transform: translateX(-50px); opacity: 0; }
+.review-layout.review-swipe-exit-right { transform: translateX(50px); opacity: 0; }
+.review-layout.review-swipe-instant { transition: none !important; }
+
+.review-video-pane {
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.review-video-pane video {
+  width: 100%;
+  border-radius: 8px;
+  background: black;
+  display: block;
+}
+
+.review-video-pane #review-photo-player {
+  width: 100%;
+  border-radius: 8px;
+  background: black;
+  display: block;
+}
+
+.review-video-pane .bar-crop-inline-img {
+  margin-top: 0.8rem;
+  width: 100%;
+}
+
+.review-nav-buttons {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.review-nav-btn {
+  flex: 1;
+  padding: 0.6rem;
+  background: #57606a;
+}
+.review-nav-btn:hover { background: #444b53; }
+.review-nav-btn:disabled { background: #d0d5dc; cursor: not-allowed; }
+
+.review-next-primary { background: #2563eb; }
+.review-next-primary:hover { background: #1d4ed8; }
+
+.review-fields-pane {
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1.1rem;
+}
+
+.review-species-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.review-species-info { flex: 1; }
+.review-species-info label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8a929c;
+  margin-bottom: 0.3rem;
+}
+
+.review-species-display {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: #2563eb; /* unverified, matches spreadsheet convention */
+}
+.review-species-display.confirmed { color: #1f2328; }
+.review-species-display.confirmed::after { content: " ✓"; color: #15803d; }
+
+.confirm-btn {
+  background: #15803d;
+  white-space: nowrap;
+}
+.confirm-btn:hover { background: #116430; }
+/* :hover above outranks the base button:disabled grey, so restate it —
+   otherwise a disabled Confirm still turns green under the cursor. */
+.confirm-btn:disabled,
+.confirm-btn:disabled:hover { background: #a9b4c2; }
+
+.edit-species-btn {
+  background: none;
+  color: #57606a;
+  border: 1px solid #d0d5dc;
+  white-space: nowrap;
+}
+.edit-species-btn:hover { background: #f6f7f9; }
+
+.review-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.review-fields-grid label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #444b53;
+  margin: 0;
+}
+
+.review-fields-grid input {
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #d0d5dc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.review-full-width { grid-column: 1 / -1; }
+
+.correction-row button {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  background: #57606a;
+}
+.correction-row button:hover { background: #444b53; }
+/* Fixed width whatever the label: all four labels are stacked in one grid
+   cell (hidden ones keep their space via visibility), so the button is
+   always as wide as the widest ("Unverify") in whatever font the system
+   uses. */
+.save-correction-btn {
+  display: inline-grid;
+  justify-items: center;
+  align-items: center;
+}
+.save-correction-btn > span { grid-area: 1 / 1; visibility: hidden; }
+.save-correction-btn[data-mode="save"] > [data-label="save"],
+.save-correction-btn[data-mode="verify"] > [data-label="verify"],
+.save-correction-btn[data-mode="saved"] > [data-label="saved"],
+.save-correction-btn[data-mode="unverify"] > [data-label="unverify"] { visibility: visible; }
+
+/* Colour per state (see updateCorrectionButton). Save uses the Review
+   tab's Confirm green; Verify/Unverify are the app's blue; Saved keeps the
+   grey and is disabled, since there's nothing to save. */
+.correction-row .save-correction-btn[data-mode="save"] { background: #15803d; }
+.correction-row .save-correction-btn[data-mode="save"]:hover { background: #116430; }
+.correction-row .save-correction-btn[data-mode="verify"],
+.correction-row .save-correction-btn[data-mode="unverify"] { background: #2563eb; }
+.correction-row .save-correction-btn[data-mode="verify"]:hover,
+.correction-row .save-correction-btn[data-mode="unverify"]:hover { background: #1d4ed8; }
+.correction-row .save-correction-btn[data-mode="saved"],
+.correction-row .save-correction-btn[data-mode="saved"]:hover { background: #57606a; cursor: default; }
+/* Mid-request (any state but Saved): the usual disabled grey. */
+.correction-row .save-correction-btn:disabled:not([data-mode="saved"]),
+.correction-row .save-correction-btn:disabled:not([data-mode="saved"]):hover { background: #a9b4c2; }
+
+/* ---- Library species group cards ---- */
+.species-group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.9rem;
+}
+
+/* Every tile is the same size regardless of label length or whether it has
+   a cover: nearly square, a touch taller than wide. --card-bg is the tile's
+   own fill, reused by the cover gradient so the fade always lands on the
+   same color the tile would otherwise be. */
+.species-group-card {
+  --card-bg: white;
+  position: relative;
+  aspect-ratio: 9 / 10;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1rem;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.species-group-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+.species-group-card:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.species-group-card.blank { --card-bg: #fafbfc; }
+.species-group-card.has-unreviewed { --card-bg: #eff6ff; border-color: #bfdbfe; }
+
+.species-group-text {
+  position: relative; /* above the cover */
+  z-index: 1;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.species-group-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: capitalize;
+  margin-bottom: 0.3rem;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.species-group-count {
+  font-size: 0.8rem;
+  color: #8a929c;
+}
+
+/* With a cover: photo fills the tile, the tile's color rises from the
+   bottom and fades out, and the title sits bottom-left on that fade. */
+.species-group-card.has-cover {
+  justify-content: flex-end;
+  align-items: flex-start;
+  text-align: left;
+}
+.species-group-cover {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px; /* card radius minus its 1px border */
+  overflow: hidden;
+}
+.species-group-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.species-group-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    var(--card-bg) 0%,
+    var(--card-bg) 20%,
+    color-mix(in srgb, var(--card-bg) 65%, transparent) 38%,
+    transparent 62%
+  );
+}
+
+/* Corner bubbles (private, unreviewed count) sit in one row so they never
+   overlap — the review count keeps the corner, private sits to its left. */
+.card-bubbles {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.45rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.unreviewed-bubble {
+  background: #2563eb;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3rem;
+  box-shadow: 0 0 0 2px white;
+}
+
+.private-bubble {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: white;
+  color: #dc2626;
+  border: 1.5px solid #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px white;
+}
+
+/* ---- Library detail toolbar ---- */
+.lib-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+.lib-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.lib-toolbar-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+#lib-detail-heading {
+  text-transform: capitalize;
+  margin: 0;
+}
+
+/* ---- Editable details grid (Date/Time/Location/Diel/Count/File Name/Notes) ---- */
+/* ---- Spreadsheet tab ---- */
+.spreadsheet {
+  width: 100%;
+  table-layout: fixed;  /* column widths come from the widths below, not
+                            from whatever content happens to be in a cell —
+                            this is what stops columns from resizing when a
+                            cell switches from plain text to an <input> */
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.spreadsheet th {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  color: #57606a;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e5ea;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.temp-toggle-header {
+  cursor: pointer;
+  user-select: none;
+}
+.temp-toggle-header:hover { color: #2563eb; }
+
+/* ---- Spreadsheet stacked sort ---- */
+#spreadsheet-sorts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-row-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8a929c;
+  width: 4rem;
+  flex-shrink: 0;
+}
+
+.sort-field-select {
+  flex: 0 0 150px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.sort-dir-select {
+  flex: 0 0 130px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.remove-sort-btn {
+  background: none;
+  color: #8a929c;
+  border: none;
+  font-size: 0.9rem;
+  padding: 0.2rem 0.4rem;
+  flex-shrink: 0;
+}
+.remove-sort-btn:hover { background: none; color: #dc2626; }
+
+#add-sort-btn {
+  background: none;
+  color: #2563eb;
+  border: 1px dashed #93c5fd;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  width: 100%;
+}
+#add-sort-btn:hover { background: #eff6ff; }
+
+.spreadsheet th.arrow-col { width: 1.75rem; }
+.spreadsheet th.menu-col { width: 2rem; }
+/* Column order: Date, Time, Location, Species, Count, Notes, File Name, Diel Period */
+.spreadsheet th:nth-child(2) { width: 7%; }   /* Date */
+.spreadsheet th:nth-child(3) { width: 7%; }   /* Time */
+.spreadsheet th:nth-child(4) { width: 9%; }   /* Location */
+.spreadsheet th:nth-child(5) { width: 13%; }  /* Species */
+.spreadsheet th:nth-child(6) { width: 8%; }   /* Count */
+.spreadsheet th:nth-child(7) { width: 16%; }  /* Notes */
+.spreadsheet th:nth-child(8) { width: 11%; }  /* File Name */
+.spreadsheet th:nth-child(9) { width: 10%; }  /* Diel Period */
+.spreadsheet th:nth-child(10) { width: 12%; }  /* Temperature */
+
+.arrow-cell {
+  text-align: center;
+  cursor: default;
+  padding: 0.45rem 0.3rem !important;
+}
+
+.bar-crop-btn {
+  background: none;
+  color: #8a929c;
+  border: none;
+  font-size: 0.95rem;
+  padding: 0.1rem 0.3rem;
+  line-height: 1;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+.bar-crop-btn:hover { background: none; color: #2563eb; }
+.bar-crop-btn.expanded { transform: rotate(90deg); color: #2563eb; }
+
+.bar-crop-row td {
+  background: #fafbfc;
+  padding: 0.7rem !important;
+  text-align: center;
+  cursor: default;
+}
+
+.bar-crop-inline-img {
+  max-width: 100%;
+  border-radius: 6px;
+  border: 1px solid #e2e5ea;
+}
+
+.spreadsheet tbody tr {
+  position: relative;
+  border-bottom: 1px solid #edf0f3;
+}
+.spreadsheet tbody tr:hover { background: #fafbfc; }
+
+.spreadsheet td {
+  padding: 0.45rem 0.7rem;
+  cursor: text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spreadsheet td.editing {
+  padding: 0.25rem 0.4rem;
+}
+
+.spreadsheet td.species-unverified,
+.spreadsheet td.species-verified {
+  position: relative; /* anchors the tooltip pseudo-elements below */
+  overflow: visible;   /* .spreadsheet td sets overflow:hidden for text
+                          truncation, which would otherwise clip this cell's
+                          tooltip since it renders above the cell's own box */
+}
+.spreadsheet td.species-unverified { color: #2563eb; }
+.spreadsheet td.species-verified { color: #1f2328; }
+
+.species-cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small media-type icon prefix on the File Name cell — rendered via
+   ::before (not a real child node) so it doesn't pollute td.textContent,
+   which copy/edit operations read directly. Gives the Media Type sort a
+   visible, verifiable effect in the spreadsheet itself. */
+.spreadsheet td.filename-photo,
+.spreadsheet td.filename-video {
+  position: relative; /* anchors the tooltip below */
+  overflow: visible;   /* .spreadsheet td sets overflow:hidden for text
+                          truncation, which would otherwise clip this cell's
+                          tooltip since it renders above the cell's own box.
+                          The .filename-cell-text span below handles the
+                          actual text truncation instead, so this doesn't
+                          let the filename itself spill into other columns. */
+}
+
+/* The icon lives on the INNER SPAN (not the td) so it sits inline with the
+   filename text inside the same truncating block box — text-overflow:
+   ellipsis then applies to icon+text together, clipping the end (the
+   filename) while keeping the icon visible at the start. */
+.filename-cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spreadsheet td.filename-photo .filename-cell-text::before { content: "📷 "; }
+.spreadsheet td.filename-video .filename-cell-text::before { content: "🎥 "; }
+
+/* Tooltip showing the file's actual extension on hover — attr(data-tooltip)
+   instead of a real nested element so it can't interfere with
+   td.textContent. */
+.spreadsheet td.filename-photo::after,
+.spreadsheet td.filename-video::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0.5rem;
+  background: #1f2328;
+  color: white;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+.spreadsheet td.filename-photo:hover::after,
+.spreadsheet td.filename-video:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Tooltip box, matching .verified-info-tooltip's look exactly (dark
+   rounded box, arrow beneath) — implemented via ::after/::before reading
+   data-tooltip, instead of a real nested element, so it can't interfere
+   with td.textContent. */
+.spreadsheet td.species-unverified::after,
+.spreadsheet td.species-verified::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2328;
+  color: white;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.spreadsheet td.species-unverified::before,
+.spreadsheet td.species-verified::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1f2328;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.spreadsheet td.species-unverified:hover::after,
+.spreadsheet td.species-unverified:hover::before,
+.spreadsheet td.species-verified:hover::after,
+.spreadsheet td.species-verified:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Location cell's coordinate tooltip — same look as the species tooltip
+   above. Guarded with the [data-tooltip] attribute selector (not just
+   [data-field="location"]) so a row with no location set never shows an
+   empty floating box on hover. */
+.spreadsheet td[data-field="location"][data-tooltip] {
+  position: relative; /* anchors the tooltip pseudo-element below */
+  overflow: visible;   /* .spreadsheet td sets overflow:hidden for text
+                          truncation, which would otherwise clip this cell's
+                          tooltip since it renders above the cell's own box.
+                          The .location-cell-text span below does the actual
+                          truncating so long names don't spill into the
+                          neighbouring columns. */
+}
+
+.location-cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spreadsheet td[data-field="location"][data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2328;
+  color: white;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+.spreadsheet td[data-field="location"][data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.spreadsheet td input {
+  box-sizing: border-box; /* so the input's own border/padding stay inside
+                              the fixed column width instead of adding to it */
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+}
+
+.row-menu-cell {
+  text-align: center;
+  cursor: default;
+}
+
+.row-menu-btn {
+  background: none;
+  color: #8a929c;
+  border: none;
+  padding: 0.2rem 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.spreadsheet tbody tr:hover .row-menu-btn { opacity: 1; }
+.row-menu-btn:hover { background: none; color: #1f2328; }
+
+/* Single shared floating menu (see #row-context-menu in index.html) —
+   fixed positioning means it's never clipped by the table, and it's
+   repositioned in JS next to whichever row's "⋮" button was clicked. */
+.row-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  min-width: 130px;
+  overflow: hidden;
+}
+
+.row-context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  color: #1f2328;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  border-radius: 0;
+}
+.row-context-menu button:hover { background: #f6f7f9; }
+.row-context-menu button.menu-delete-btn { color: #dc2626; }
+
+/* ---- Live running-job log (Upload tab) ---- */
+#running-log-box { margin-top: 1rem; }
+#running-log-tail {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  color: #444b53;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* ---- "Add new species" modal ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100; /* Leaflet's own panes/controls use z-index up to 1000
+                    (see #track-map) — this keeps modals layered above the
+                    map regardless of which one is open */
+}
+
+.modal-box {
+  background: white;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 70vh;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.modal-close {
+  background: none;
+  color: #57606a;
+  padding: 0.2rem 0.5rem;
+  font-size: 1rem;
+}
+.modal-close:hover { background: none; color: #1f2328; }
+
+#modal-search { margin-bottom: 0.7rem; }
+
+.add-location-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.add-location-modal-form label {
+  margin-top: 0.6rem;
+}
+.add-location-modal-form label:first-child {
+  margin-top: 0;
+}
+.add-location-modal-form input {
+  font-size: 0.9rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  font-family: inherit;
+}
+.add-location-modal-form button {
+  margin-top: 1rem;
+}
+
+.modal-species-list {
+  overflow-y: auto;
+  flex: 1;
+  border-top: 1px solid #edf0f3;
+}
+
+.modal-species-item {
+  padding: 0.55rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #edf0f3;
+  display: flex;
+  justify-content: space-between;
+}
+.modal-species-item:hover { background: #f6f7f9; }
+.modal-species-item .count { color: #8a929c; font-size: 0.8rem; }
+
+/* ---- Settings tab ---- */
+#tab-settings {
+  max-width: 980px;
+}
+
+/* Category column on the left (search + category list), the chosen
+   category's settings on the right. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-search-wrap { position: relative; }
+.settings-search-icon {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8a929c;
+  pointer-events: none;
+}
+#settings-search {
+  width: 100%;
+  padding: 0.5rem 0.6rem 0.5rem 1.9rem;
+  border: 1px solid #d0d5dc;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  background: white;
+}
+#settings-search:focus { outline: 2px solid #2563eb; outline-offset: -1px; border-color: transparent; }
+
+.settings-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.settings-category-btn,
+.settings-search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: #444b53;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+}
+.settings-category-btn:hover,
+.settings-search-result:hover { background: #e9ecf0; }
+.settings-category-btn.active {
+  background: white;
+  color: #1d4ed8;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 #2563eb, 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.settings-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.settings-search-result {
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.settings-search-result.active { background: white; box-shadow: inset 3px 0 0 #2563eb; }
+.settings-search-result-title { color: #1f2328; }
+.settings-search-result-title mark { background: #fde68a; color: inherit; border-radius: 2px; }
+.settings-search-result-category { font-size: 0.72rem; color: #8a929c; }
+.settings-search-empty { font-size: 0.82rem; color: #8a929c; padding: 0.4rem 0.75rem; }
+
+.settings-pane { display: none; }
+.settings-pane.active { display: block; }
+.settings-pane-title {
+  font-size: 1.1rem;
+  margin: 0.35rem 0 0.9rem;
+}
+
+/* Briefly outlines the setting a search result jumped to. */
+.settings-search-flash {
+  animation: settings-search-flash 1.6s ease-out;
+  border-radius: 8px;
+}
+@keyframes settings-search-flash {
+  0%, 40% { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.55); }
+  100% { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0); }
+}
+
+.settings-section {
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  background: #fbfbfc;
+}
+.settings-section:last-child { margin-bottom: 0; }
+
+.settings-section-hint {
+  font-size: 0.8rem;
+  color: #57606a;
+  margin: 0 0 0.8rem;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 2.6rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.toggle-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.toggle-switch.active { background: #2563eb; }
+.toggle-switch.active .toggle-switch-knob { transform: translateX(1.1rem); }
+
+.ocr-disable-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0 0.6rem;
+}
+.ocr-disable-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.ocr-disable-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.ocr-disable-hint {
+  font-size: 0.75rem;
+  color: #57606a;
+}
+
+.ocr-presets-subsection {
+  margin-top: 0.7rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #e2e5ea;
+  transition: opacity 0.15s;
+}
+.ocr-presets-subheading {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.ocr-presets-subsection.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+#clear-all-marks-btn.confirming,
+#empty-trash-btn.confirming {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1.5px solid #dc2626;
+}
+#clear-all-marks-btn.confirming:hover,
+#empty-trash-btn.confirming:hover { background: #fee2e2; }
+
+.storage-meter {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: #e2e5ea;
+  overflow: hidden;
+  margin: 0.2rem 0 0.4rem;
+}
+.storage-meter-fill {
+  height: 100%;
+  width: 0;
+  background: #2563eb;
+  transition: width 0.3s;
+}
+.storage-meter-fill.warn { background: #d97706; }
+.storage-meter-fill.danger { background: #dc2626; }
+.storage-usage-text {
+  font-size: 0.82rem;
+  margin: 0;
+}
+.storage-trash-text {
+  font-size: 0.82rem;
+  margin: 0 0 0.6rem;
+}
+.storage-trash-result {
+  font-size: 0.75rem;
+  color: #57606a;
+  margin: 0.5rem 0 0;
+}
+.storage-auto-row {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #e2e5ea;
+}
+select.auto-empty-threshold {
+  width: auto;
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0 0.2rem;
+}
+
+/* ---- Track tab ---- */
+.track-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.track-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.track-filter-field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #57606a;
+  margin: 0;
+}
+.track-filter-field > div, .track-filter-field {
+  position: relative;
+}
+.track-filter-field input,
+.track-filter-field select {
+  font-size: 0.85rem;
+  padding: 0.4rem 1.7rem 0.4rem 0.55rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  font-family: inherit;
+  background: white;
+}
+
+.track-filter-clear-btn {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.4rem;
+  background: none;
+  border: none;
+  color: #8a929c;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  line-height: 1;
+}
+.track-filter-clear-btn:hover { background: #f1f3f5; color: #1f2328; }
+
+.track-simulate-btn {
+  opacity: 0.7;
+}
+
+.track-map-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+#track-map {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  border: 1px solid #e2e5ea;
+  background: #f6f7f9;
+}
+
+.track-missing-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 500; /* above the map's own tiles/markers/controls, well below modals (1100) */
+  background: #fef2f2;
+  border: 2px solid #dc2626;
+  color: #7f1d1d;
+  padding: 0.9rem 1.4rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  white-space: nowrap;
+}
+.track-missing-overlay:hover { background: #fee2e2; }
+
+.track-layout {
+  display: flex;
+  gap: 1rem;
+  height: 65vh;
+}
+
+.track-media-list {
+  width: 300px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-right: 0.2rem; /* keeps cards clear of the scrollbar */
+}
+
+.track-media-list-empty {
+  width: 300px;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  border: 1px dashed #e2e5ea;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.track-media-card {
+  position: relative;
+  border-radius: 8px;
+  padding: 0.5rem 2rem 0.5rem 0.6rem;
+  cursor: default;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.track-media-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.track-media-card-species { text-transform: capitalize; }
+.track-media-card-location {
+  font-weight: 600;
+  opacity: 0.8;
+  text-align: right;
+  margin-right: 0.6rem; /* extra breathing room from the zoom button at the card's right edge */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-media-card-bottom {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  opacity: 0.85;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.track-media-card-bottom span:not(:empty)::after { content: "•"; margin-left: 0.5rem; opacity: 0.6; }
+.track-media-card-bottom span:last-child::after { content: ""; margin: 0; }
+.track-media-card-zoom-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.4rem;
+  transform: translateY(-50%);
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.15);
+  color: inherit;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.track-media-card-zoom-btn:hover { background: rgba(0, 0, 0, 0.3); }
+
+/* Diel period color coding */
+.track-media-card.diel-day { background: #dbeeff; color: #1f2328; }
+.track-media-card.diel-night { background: #1e3a5f; color: #e8eef5; }
+.track-media-card.diel-dawn { background: #fef3c7; color: #1f2328; }
+.track-media-card.diel-dusk { background: #fed7aa; color: #1f2328; }
+.track-media-card:not(.diel-day):not(.diel-night):not(.diel-dawn):not(.diel-dusk) { background: #f1f3f5; color: #1f2328; }
+
+/* ---- Location management (Settings tab) ---- */
+/* "Add new locations": a Single / Batch switch over two panels. */
+.add-location-modes {
+  display: inline-flex;
+  background: #e9ecf0;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 0.9rem;
+}
+.add-location-mode-btn {
+  background: transparent;
+  color: #57606a;
+  padding: 0.35rem 1.1rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+}
+.add-location-mode-btn:hover { background: rgba(255, 255, 255, 0.6); color: #1f2328; }
+.add-location-mode-btn.active {
+  background: white;
+  color: #1d4ed8;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Same column proportions as the Manage Locations rows below it. */
+.add-location-form {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 0.6rem;
+  align-items: end;
+}
+.add-location-field label { margin-top: 0; font-size: 0.75rem; color: #57606a; }
+.add-location-field input {
+  width: 100%;
+  font-size: 0.88rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d0d5dc;
+  border-radius: 6px;
+  font-family: inherit;
+  background: white;
+}
+.add-location-field input.invalid { border-color: #dc2626; background: #fef2f2; }
+#add-location-submit-btn { padding: 0.5rem 1.2rem; }
+
+.add-location-status {
+  font-size: 0.82rem;
+  margin: 0.6rem 0 0;
+  color: #166534;
+}
+.add-location-status.error { color: #b91c1c; }
+.add-location-status button { margin-left: 0.5rem; padding: 0.25rem 0.7rem; font-size: 0.8rem; }
+
+.locations-csv-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1.4rem 1rem;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  font-size: 0.88rem;
+  color: #57606a;
+  transition: border-color 0.15s, background 0.15s;
+}
+.locations-csv-dropzone.dragover { border-color: #2563eb; background: #eff6ff; }
+.locations-csv-help {
+  font-size: 0.78rem;
+  color: #57606a;
+  margin: 0.5rem 0 0.8rem;
+}
+.locations-csv-help code { font-size: 0.75rem; background: #e9ecf0; padding: 0.05rem 0.3rem; border-radius: 4px; }
+
+@media (max-width: 640px) {
+  .add-location-form { grid-template-columns: 1fr 1fr; }
+  .add-location-field-name { grid-column: 1 / -1; }
+  #add-location-submit-btn { grid-column: 1 / -1; }
+
+  /* Five columns don't fit a phone: each location becomes a small card —
+     name, then lat/lon, then its buttons. */
+  .settings-section .locations-list-header { display: none; }
+  .locations-list .location-row {
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid #e2e5ea;
+    border-radius: 8px;
+    background: white;
+    padding: 0.6rem;
+  }
+  .locations-list .location-row-name { grid-column: 1 / -1; }
+}
+
+/* This is a <label> (it wraps a hidden file input), so it inherits none of
+   the `button {}` base styling — .secondary-btn alone only sets a
+   background colour and would leave it looking nothing like a button.
+   Everything the base button rule provides is restated here. */
+.locations-csv-label {
+  display: inline-block;
+  background: #57606a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-weight: 400;
+  line-height: normal;
+  margin: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.locations-csv-label:hover { background: #444b53; }
+
+.locations-csv-template-btn {
+  background: none;
+  color: #2563eb;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: underline;
+}
+.locations-csv-template-btn:hover { background: none; color: #1d4ed8; }
+
+.locations-import-result {
+  font-size: 0.82rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  margin-bottom: 0.8rem;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.locations-import-result.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.locations-import-confirm {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.locations-import-confirm-intro {
+  font-size: 0.85rem;
+  color: #78350f;
+  margin: 0 0 0.7rem;
+}
+
+.locations-import-confirm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 160px;
+  overflow-y: auto;
+  margin-bottom: 0.9rem;
+}
+
+.locations-import-confirm-row {
+  font-size: 0.8rem;
+  background: white;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+.locations-import-confirm-row .name { font-weight: 600; }
+.locations-import-confirm-row .old-value { color: #b91c1c; text-decoration: line-through; }
+.locations-import-confirm-row .new-value { color: #166534; font-weight: 600; }
+
+.locations-import-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.locations-import-confirm-actions button { flex: 1; }
+
+.locations-list-header,
+.location-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.locations-list-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #57606a;
+  padding: 0 0.3rem 0.4rem;
+  border-bottom: 1px solid #e2e5ea;
+}
+
+.locations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+
+.location-row {
+  padding: 0.4rem 0.3rem;
+}
+.location-row input[type="text"],
+.location-row input[type="number"] {
+  box-sizing: border-box;
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  font-family: inherit;
+}
+.location-row.needs-coords input[type="text"] {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+/* ---- OCR Configuration Wizard ---- */
+.ocr-wizard-box {
+  width: 92%;
+  max-width: 700px;
+  max-height: 85vh;
+}
+
+.ocr-wizard-instructions {
+  font-size: 0.85rem;
+  color: #444b53;
+  margin: 0 0 0.8rem 0;
+}
+
+.ocr-wizard-canvas-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  background: #f6f7f9;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+#ocr-wizard-canvas {
+  cursor: crosshair;
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.ocr-wizard-magnifier {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%; /* clips the canvas's visual box to a circle */
+  border: 3px solid white;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  background: black;
+  pointer-events: none; /* never intercepts mouse events meant for the canvas underneath */
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 10;
+}
+.ocr-wizard-magnifier.visible { opacity: 1; }
+
+.ocr-wizard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.ocr-wizard-magnifier-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #57606a;
+  cursor: pointer;
+}
+.ocr-wizard-magnifier-toggle input { margin: 0; }
+
+.ocr-wizard-reset-btn {
+  background: none;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+}
+.ocr-wizard-reset-btn:hover:not(:disabled) { background: #fef2f2; }
+.ocr-wizard-reset-btn:disabled {
+  color: #b0b6bd;
+  border-color: #e2e5ea;
+  background: none;
+  cursor: not-allowed;
+}
+
+.ocr-wizard-nav {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.ocr-wizard-nav button {
+  flex: 1;
+  background: #57606a;
+}
+.ocr-wizard-nav button:hover { background: #444b53; }
+
+.ocr-wizard-primary { background: #2563eb !important; }
+.ocr-wizard-primary:hover { background: #1d4ed8 !important; }
+.ocr-wizard-primary:disabled { background: #d0d5dc !important; cursor: not-allowed; }
+
+.ocr-wizard-skip {
+  background: none !important;
+  color: #57606a;
+  border: 1px solid #d0d5dc;
+}
+.ocr-wizard-skip:hover { background: #f6f7f9 !important; }
+
+.ocr-wizard-previews {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-bottom: 0.9rem;
+}
+
+.ocr-wizard-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.ocr-wizard-preview-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #444b53;
+  width: 5rem;
+  flex-shrink: 0;
+}
+
+.ocr-wizard-preview-canvas {
+  border: 1px solid #e2e5ea;
+  border-radius: 4px;
+  max-width: 100%;
+}
+
+.ocr-wizard-preview-reading {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #444b53;
+}
+.ocr-wizard-reading-blank { color: #b91c1c; font-style: normal; }
+
+.autofill-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.autofill-item {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+.autofill-item:hover { background: #f6f7f9; }
+
+/* ---- Temperature unit toggle (Library Settings) ---- */
+.temp-unit-toggle-group {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.temp-unit-btn {
+  flex: 1;
+  background: #f1f3f5;
+  color: #57606a;
+  border: 1px solid #e2e5ea;
+}
+.temp-unit-btn:hover { background: #e9ebee; }
+.temp-unit-btn.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+.temp-unit-btn.active:hover { background: #1d4ed8; }
+
+/* ---- OCR presets management (Library Settings) ---- */
+.ocr-presets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.ocr-preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: #f6f7f9;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.ocr-preset-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ocr-preset-remove-btn {
+  background: none;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.ocr-preset-remove-btn:hover { background: #fef2f2; }
+
+/* ---- Video popup modal ---- */
+.video-modal-box {
+  position: relative;
+  background: black;
+  border-radius: 10px;
+  max-width: 90vw;
+  max-height: 85vh;
+  padding: 0;
+  display: flex;
+}
+
+.video-modal-box video, .video-modal-box img {
+  max-width: 90vw;
+  max-height: 85vh;
+  border-radius: 10px;
+  display: block;
+}
+
+.video-modal-close {
+  position: absolute;
+  top: -2.2rem;
+  right: 0;
+  color: white;
+  background: none;
+  font-size: 1.3rem;
+  padding: 0.2rem 0.5rem;
+}
+.video-modal-close:hover { background: none; color: #d0d5dc; }
+
+.app-credit {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  /*border-top: 1px solid rgba(255, 255, 255, 0.08); */
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.app-credit strong {
+  color: #bbb;
+  font-weight: 600;
+}
+
+.app-credit p { margin: 0.2rem 0; }
+
+.app-credit a {
+  color: #888;
+  text-decoration: underline;
+}
+.app-credit a:hover { color: #bbb; }
+
+/* Hide the number-input spinner arrows on latitude/longitude fields.
+   Coordinates aren't a value you nudge up and down — the arrows are
+   useless here and just crowd the field. Scoped to these specific
+   classes/ids so genuinely steppable fields (Count) keep theirs. */
+.location-row-lat::-webkit-outer-spin-button,
+.location-row-lat::-webkit-inner-spin-button,
+.location-row-lon::-webkit-outer-spin-button,
+.location-row-lon::-webkit-inner-spin-button,
+#add-location-modal-lat::-webkit-outer-spin-button,
+#add-location-modal-lat::-webkit-inner-spin-button,
+#add-location-modal-lon::-webkit-outer-spin-button,
+#add-location-modal-lon::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.location-row-lat,
+.location-row-lon,
+#add-location-modal-lat,
+#add-location-modal-lon {
+  -moz-appearance: textfield;  /* Firefox */
+  appearance: textfield;
+}
+
+.location-row-delete-btn {
+  background: white;
+  color: #ef4444;
+  border: 1.5px solid #fca5a5;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.location-row-delete-btn:hover { background: #fef2f2; }
+
+/* ---- Track tab: locations multi-select filter ---- */
+.track-location-filter { position: relative; }
+
+#track-location-filter-btn {
+  background: white;
+  color: #1f2328;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  text-align: left;
+  min-width: 150px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#track-location-filter-btn:hover { background: #f6f7f9; }
+
+.track-location-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 600; /* above Leaflet's panes (max 1000 is the map itself; this sits over the toolbar) */
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  min-width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.track-location-filter-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid #edf0f3;
+}
+.track-location-filter-actions button {
+  flex: 1;
+  background: none;
+  color: #2563eb;
+  border: none;
+  padding: 0.2rem;
+  font-size: 0.78rem;
+  text-decoration: underline;
+}
+.track-location-filter-actions button:hover { background: #f6f7f9; }
+
+.track-location-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.25rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.track-location-filter-item:hover { background: #f6f7f9; }
+.track-location-filter-item input { cursor: pointer; margin: 0; }
+.track-location-filter-empty {
+  font-size: 0.8rem;
+  color: #57606a;
+  padding: 0.3rem 0.25rem;
+}
+
+/* ---- Account / sign-in menu (top-right) ---- */
+.account-area {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+.account-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border-radius: 50%;
+  background: #e2e5ea;
+  color: #57606a;
+  border: 1px solid #d6dae0;
+}
+.account-btn:hover { background: #d6dae0; color: #1f2328; }
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  /* Above all normal page content, but deliberately BELOW .modal-overlay
+     (1100) — a menu floating over an open modal would look broken. */
+  z-index: 1050;
+  min-width: 200px;
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  padding: 0.9rem;
+  text-align: left;
+}
+
+.account-menu-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f2328;
+  line-height: 1.2;
+}
+.account-menu-status {
+  font-size: 0.78rem;
+  color: #57606a;
+  margin-top: 0.15rem;
+}
+
+.account-auth-btn {
+  width: 100%;
+  margin-top: 0.9rem;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+#account-login-form {
+  width: 220px;
+}
+#account-login-form label {
+  font-size: 0.8rem;
+  margin-top: 0.7rem;
+}
+#account-login-form label:first-of-type { margin-top: 0.6rem; }
+#account-login-form input {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+.account-login-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+  margin: 0.5rem 0 0;
+}
+
+/* ---- Review tab: Count row with prominent steppers ---- */
+.review-count-row label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #444b53;
+  margin: 0 0 0.3rem;
+}
+
+.review-count-stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.review-count-btn {
+  flex: 0 0 3rem;
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  border-radius: 8px;
+}
+
+/* The count field sits between the two buttons and carries the same
+   height. Its native spinner arrows are hidden — the large buttons either
+   side are the intended control, and tiny duplicate arrows next to them
+   just add visual noise. */
+.review-count-stepper input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 0;
+}
+.review-count-stepper input::-webkit-outer-spin-button,
+.review-count-stepper input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.review-count-stepper input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ---- Upload tab: predictive Location field ---- */
+.upload-location-wrap {
+  position: relative; /* anchors .autofill-dropdown */
+}
+.upload-location-wrap input { width: 100%; }
+
+/* The "Add new location" suggestion, always last in the list. Visually
+   separated so it doesn't get mistaken for an existing location. */
+.autofill-item.autofill-item-add {
+  border-top: 1px solid #edf0f3;
+  color: #2563eb;
+  font-weight: 600;
+}
+.autofill-item.autofill-item-add:hover { background: #eff6ff; }
+
+/* Prefilled + locked when the modal is opened from that suggestion — the
+   name is already decided at that point, so it reads as fixed. */
+#add-location-modal-name[readonly] {
+  background: #f6f7f9;
+  color: #57606a;
+  cursor: default;
+}
+
+/* ---- Library category settings modal ---- */
+.category-settings-box {
+  max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+#category-settings-title { text-transform: capitalize; }
+
+.category-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0 1rem;
+  border-bottom: 1px solid #edf0f3;
+}
+.category-settings-text,
+.category-settings-cover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.category-settings-cover { padding-top: 1rem; }
+.category-settings-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.category-settings-hint {
+  font-size: 0.8rem;
+  color: #57606a;
+}
+
+/* Red when on, matching the private bubble it puts on the tile. */
+.private-toggle.active { background: #dc2626; }
+.toggle-switch:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.category-cover-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+/* A real tile, rendered by the same code as the Library grid — just not
+   interactive here. */
+.category-cover-preview {
+  width: 140px;
+  flex-shrink: 0;
+  cursor: default;
+}
+.category-cover-preview:hover {
+  border-color: #e2e5ea;
+  box-shadow: none;
+  transform: none;
+}
+.category-cover-preview.has-unreviewed:hover { border-color: #bfdbfe; }
+
+.category-cover-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.category-cover-upload {
+  display: inline-block;
+  margin: 0;
+  font-weight: normal; /* it's a <label>, which the base styles bold */
+  color: white;
+  border-radius: 6px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.category-cover-actions:has(input:focus-visible) .category-cover-upload {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.category-cover-remove {
+  background: none;
+  color: #b42318;
+  padding: 0.2rem 0;
+  font-size: 0.85rem;
+}
+.category-cover-remove:hover { background: none; text-decoration: underline; }
+.category-cover-status {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #57606a;
+}
+.category-cover-status.error { color: #b42318; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Phone layout for the Library tiles. Lives down here, after the base tile
+   rules, so it actually wins the cascade (it previously sat above them in
+   the main mobile block and was being overridden). */
+@media (max-width: 640px) {
+  /* Fewer, bigger category cards instead of auto-fill cramming in as many
+     as technically fit at their desktop size. */
+  .species-group-cards { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .species-group-card { padding: 0.9rem 0.8rem; }
+  .species-group-label { font-size: 1.15rem; }
+  .species-group-count { font-size: 0.95rem; }
+  .category-cover-preview { width: 120px; }
+
+  /* Signed out on a phone: no hover to reveal the "i" bubble's tooltip, so
+     show who verified it as a tag beside the species instead. */
+  body.signed-out .verified-info { display: none; }
+  body.signed-out .verified-tag.is-verified { display: inline-flex; }
+  body.signed-out .tag-left { flex-wrap: wrap; }
+}
+
+/* Settings on a phone: one column, categories become a row of tabs under
+   the search box. */
+@media (max-width: 640px) {
+  .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .settings-nav { position: static; }
+  .settings-category-list { flex-direction: row; overflow-x: auto; gap: 0.4rem; }
+  .settings-category-btn { width: auto; flex-shrink: 0; text-align: center; }
+  .settings-category-btn.active { box-shadow: inset 0 -2px 0 #2563eb, 0 1px 2px rgba(0, 0, 0, 0.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-search-flash { animation: none; outline: 3px solid rgba(37, 99, 235, 0.55); }
+  .species-group-card { transition: none; }
+  .species-group-card:hover { transform: none; }
+}
+
+/* ---- Standalone sign-in page (templates/signin.html) ---- */
+.signin-body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.signin-page {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.signin-card {
+  margin-top: 1.5rem;
+  background: white;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1.5rem 1.25rem;
+}
+
+.signin-card h1 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+.signin-app-name {
+  margin: 0.3rem 0 1.4rem;
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+/* 1rem (16px) inputs: anything smaller makes iOS Safari zoom the whole
+   page in when the field is focused. */
+.signin-card input[type="text"],
+.signin-card input[type="password"] {
+  font-size: 1rem;
+  padding: 0.7rem 0.8rem;
+}
+.signin-card label { font-size: 0.9rem; }
+
+.signin-submit {
+  width: 100%;
+  margin-top: 1.4rem;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+}
+
+.signin-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin: 0.8rem 0 0;
+}
+
+.signin-note {
+  margin: 1.2rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #57606a;
+}
+.signin-note a {
+  color: #2563eb;
+  overflow-wrap: anywhere;
+}
+
+.signin-submit:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
