@@ -56,6 +56,8 @@ import cv2
 import numpy as np
 
 import bar_ocr
+import db
+import db_import
 
 app = Flask(__name__)
 
@@ -68,7 +70,6 @@ BAR_CROPS_DIR.mkdir(exist_ok=True)
 THUMBNAILS_DIR = RUNS_DIR / "thumbnails"
 THUMBNAILS_DIR.mkdir(exist_ok=True)
 JOBS_INDEX_FILE = RUNS_DIR / "jobs_index.json"
-VIDEOS_INDEX_FILE = RUNS_DIR / "videos_index.json"
 SPECIES_LIST_FILE = RUNS_DIR / "species_list.json"
 OCR_CONFIGS_FILE = RUNS_DIR / "ocr_configs.json"
 LOCATIONS_FILE = RUNS_DIR / "locations.json"
@@ -280,10 +281,31 @@ def save_jobs_index():
             json.dump(jobs, f, indent=2)
 
 
-def save_videos_index():
+def persist_videos(video_ids):
+    """
+    Writes the given videos' current in-memory state to the database: each
+    id still in `videos` is saved (inserted or updated), each id no longer
+    there is deleted. Only these rows are written, not the whole library.
+
+    All of them go in one transaction, so a batch (a finished job, a bulk
+    clear) is saved all-or-nothing. videos_lock is held throughout, so two
+    saves of the same record can't reach the database out of order — the
+    database always ends up matching the in-memory copy.
+
+    Callers change `videos` under videos_lock, release it, then call this
+    with the ids they touched (videos_lock isn't reentrant).
+    """
+    ids = list(dict.fromkeys(video_ids))  # de-duplicate, keep order
+    if not ids:
+        return
     with videos_lock:
-        with open(VIDEOS_INDEX_FILE, "w") as f:
-            json.dump(videos, f, indent=2)
+        with db.transaction() as conn:
+            for vid in ids:
+                record = videos.get(vid)
+                if record is None:
+                    db.delete("videos", vid, conn=conn)
+                else:
+                    db.upsert("videos", record, conn=conn)
 
 
 def save_species_list():
@@ -366,7 +388,14 @@ def load_ocr_configs():
 
 
 jobs = load_json(JOBS_INDEX_FILE, {})
-videos = load_json(VIDEOS_INDEX_FILE, {})
+# Library records live in SQLite (runs/wildlife.db, see db.py). `videos`
+# stays as an in-memory copy for fast reads; persist_videos() writes changes
+# through to the database. On the first start after upgrading, the old
+# videos_index.json is imported once and renamed to videos_index.json.bak.
+db.DB_PATH = RUNS_DIR / "wildlife.db"
+db.init_db()
+db_import.import_sources(RUNS_DIR, ["videos_index.json"], log=lambda msg: print(f"[db] {msg}", flush=True))
+videos = db.load_all("videos")
 locations = load_json(LOCATIONS_FILE, {})
 canonical_species = load_json(SPECIES_LIST_FILE, [])
 upload_batches = load_json(UPLOAD_BATCHES_FILE, {})
@@ -374,27 +403,9 @@ category_settings = load_json(CATEGORY_SETTINGS_FILE, {})
 storage_settings.update(load_json(STORAGE_SETTINGS_FILE, {}))
 load_ocr_configs()
 
-# Videos created before Date/Time/Location/Count/Notes/Diel Period existed
-# won't have these keys — fill in defaults so the UI doesn't break on them.
-_NEW_FIELD_DEFAULTS = {
-    "date": None, "time": None, "location": None, "diel_period": None,
-    "temperature": None,
-    "count": 0, "notes": "", "display_filename": None, "metadata_edited": False,
-    "has_bar_crop": False, "media_type": "video", "has_thumbnail": False,
-    # None here (rather than a guessed name) for anything corrected before
-    # accounts existed — there's no real record of who actually did it, and
-    # guessing would be worse than an honest "unknown."
-    "corrected_by": None,
-}
-for _v in videos.values():
-    for _key, _default in _NEW_FIELD_DEFAULTS.items():
-        _v.setdefault(_key, _v.get("filename") if _key == "display_filename" else _default)
-    # marked_for_review is a new, independent flag (see /api/videos/<id>/correct
-    # and /update) — existing entries default based on their CURRENT reviewed
-    # status (matches what the unreviewed bubble already showed for them)
-    # rather than a flat value, so this migration doesn't suddenly flag every
-    # already-confirmed video as needing review again.
-    _v.setdefault("marked_for_review", not bool(_v.get("corrected_species")))
+# (Defaults for records written before Date/Time/Count/review-flag etc.
+# existed are filled in once, when videos_index.json is imported — see
+# db_import._convert_videos. Every database row has every column.)
 
 # One-time data migrations, each recorded by name in migrations.json once
 # applied so it never re-runs (and never undoes a later human edit).
@@ -406,13 +417,12 @@ if "blank_count_zero" not in _applied_migrations:
     # 0 — but only entries still on the AI's own blank verdict (never
     # species-corrected) whose count is still that 1, i.e. exactly the
     # values the old estimator produced.
-    _migrated = 0
+    _migrated = []
     for _v in videos.values():
         if not _v.get("ai_species") and not _v.get("corrected_species") and _v.get("count") == 1:
             _v["count"] = 0
-            _migrated += 1
-    if _migrated:
-        save_videos_index()
+            _migrated.append(_v["id"])
+    persist_videos(_migrated)
     _applied_migrations.add("blank_count_zero")
     with open(MIGRATIONS_FILE, "w") as _f:
         json.dump(sorted(_applied_migrations), _f, indent=2)
@@ -731,6 +741,7 @@ def sync_videos_from_job(job_id):
         canonical_species.sort()
         save_species_list()
 
+    synced_ids = []
     for img in data.get("images", []):
         filename = img.get("file", "?")
         dets = img.get("detections", [])
@@ -835,6 +846,7 @@ def sync_videos_from_job(job_id):
                 "favorited": existing.get("favorited", False),
                 "marked_for_review": existing.get("marked_for_review", True),
                 "corrected_at": existing.get("corrected_at"),
+                "corrected_by": existing.get("corrected_by"),
                 **ocr_fields,
                 "count": existing.get("count", estimated_count),
                 "notes": existing.get("notes", ""),
@@ -843,7 +855,8 @@ def sync_videos_from_job(job_id):
                 "has_bar_crop": has_bar_crop,
                 "has_thumbnail": has_thumbnail,
             }
-    save_videos_index()
+        synced_ids.append(vid)
+    persist_videos(synced_ids)
 
 
 def display_species(video):
@@ -1971,12 +1984,13 @@ def merge_locations():
 
     source_set = set(source_names)
     with videos_lock:
-        updated_count = 0
+        relocated_ids = []
         for v in videos.values():
             if v.get("location") in source_set:
                 v["location"] = target_name
-                updated_count += 1
-    save_videos_index()
+                relocated_ids.append(v["id"])
+        updated_count = len(relocated_ids)
+    persist_videos(relocated_ids)
 
     with locations_lock:
         for name in source_set:
@@ -1991,13 +2005,15 @@ def merge_locations():
     # happens to re-edit each row.
     snapshot = {target_name: {"lat": lat, "lon": lon}}
     with videos_lock:
+        recomputed_ids = []
         for v in videos.values():
             if v.get("location") == target_name:
                 v["diel_period"] = compute_diel_period(
                     v.get("date"), v.get("time"), target_name,
                     locations_snapshot=snapshot,
                 )
-    save_videos_index()
+                recomputed_ids.append(v["id"])
+    persist_videos(recomputed_ids)
 
     return jsonify({
         "target_name": target_name, "lat": lat, "lon": lon,
@@ -2195,7 +2211,7 @@ def set_favorite(video_id):
             return jsonify({"error": "Unknown video"}), 404
         videos[video_id]["favorited"] = favorited
         record = dict(videos[video_id])
-    save_videos_index()
+    persist_videos([video_id])
     return jsonify({**record, "display_species": display_species(record)})
 
 
@@ -2238,7 +2254,7 @@ def correct_species(video_id):
         if "marked_for_review" in data:
             record["marked_for_review"] = bool(data["marked_for_review"])
         record = dict(record)
-    save_videos_index()
+    persist_videos([video_id])
     return jsonify({**record, "display_species": display_species(record)})
 
 
@@ -2303,7 +2319,7 @@ def update_video_metadata(video_id):
             )
 
         result = dict(record)
-    save_videos_index()
+    persist_videos([video_id])
     return jsonify({**result, "display_species": display_species(result)})
 
 
@@ -2322,7 +2338,7 @@ def delete_video(video_id):
         if video_id not in videos:
             return jsonify({"error": "Unknown video"}), 404
         del videos[video_id]
-    save_videos_index()
+    persist_videos([video_id])
 
     crop_path = BAR_CROPS_DIR / f"{video_id}.png"
     crop_path.unlink(missing_ok=True)
@@ -2336,11 +2352,11 @@ def clear_all_review_marks():
     """Clears marked_for_review on every video at once — the Settings tab's
     bulk 'clear all marked for review' action."""
     with videos_lock:
-        cleared_count = sum(1 for v in videos.values() if v.get("marked_for_review"))
-        for v in videos.values():
-            v["marked_for_review"] = False
-    save_videos_index()
-    return jsonify({"cleared_count": cleared_count})
+        cleared_ids = [vid for vid, v in videos.items() if v.get("marked_for_review")]
+        for vid in cleared_ids:
+            videos[vid]["marked_for_review"] = False
+    persist_videos(cleared_ids)
+    return jsonify({"cleared_count": len(cleared_ids)})
 
 
 # ---------------------------------------------------------------------------
@@ -2456,7 +2472,7 @@ def empty_trash():
                 del videos[vid]
         if not removed:
             return {"deleted_count": 0, "freed_bytes": 0, "failed_count": 0}
-        save_videos_index()
+        persist_videos(removed)
 
         freed_bytes, failed = 0, {}
         touched_dirs = set()
@@ -2479,7 +2495,7 @@ def empty_trash():
             with videos_lock:
                 for vid, record in failed.items():
                     videos.setdefault(vid, record)
-            save_videos_index()
+            persist_videos(failed)
 
         # A batch folder emptied of every file has nothing left to serve —
         # drop it and its upload manifest entry too.

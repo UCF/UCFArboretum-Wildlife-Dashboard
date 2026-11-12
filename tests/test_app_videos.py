@@ -1,0 +1,190 @@
+"""
+End-to-end tests of app.py's Library (videos) storage on SQLite: starts the
+real app against a sample runs/ folder, drives it through its HTTP API, and
+checks the database matches what the app shows — including after a restart.
+
+app.py keeps its data next to itself (BASE_DIR/runs), so each test copies
+the app into a temporary folder first; your real runs/ is never touched.
+
+Needs the app's own dependencies (flask, opencv, ...). Skipped without them.
+
+    python -m unittest tests.test_app_videos -v
+"""
+
+import importlib.util
+import json
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import db
+from tests.sample_data import write_sample
+
+try:
+    import cv2  # noqa: F401
+    import flask  # noqa: F401
+    from werkzeug.security import generate_password_hash
+    HAVE_APP_DEPS = True
+except ImportError:
+    HAVE_APP_DEPS = False
+
+REPO = Path(__file__).resolve().parent.parent
+APP_FILES = ["app.py", "bar_ocr.py", "db.py", "db_import.py"]
+
+
+@unittest.skipUnless(HAVE_APP_DEPS, "app dependencies (flask, opencv-python) not installed")
+class AppVideoStorageTests(unittest.TestCase):
+    _instances = 0
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        for name in APP_FILES:
+            shutil.copy(REPO / name, self.root / name)
+        for folder in ("templates", "static"):
+            shutil.copytree(REPO / folder, self.root / folder)
+
+        self.runs = self.root / "runs"
+        write_sample(self.runs, n_videos=80)
+        # Every sample job finished, so the app's worker doesn't try to run SpeciesNet.
+        jobs = json.loads((self.runs / "jobs_index.json").read_text())
+        for j in jobs.values():
+            j["status"] = "done"
+        (self.runs / "jobs_index.json").write_text(json.dumps(jobs))
+        # A real password, so the tests can sign in.
+        (self.runs / "users.json").write_text(json.dumps({
+            "tester": {"password_hash": generate_password_hash("pw"), "first_name": "Test", "last_name": "User"},
+        }))
+        self.original = json.loads((self.runs / "videos_index.json").read_text())
+        self._orig_db_path = db.DB_PATH
+
+    def tearDown(self):
+        db.close()
+        db.DB_PATH = self._orig_db_path
+        self._tmp.cleanup()
+
+    def start_app(self):
+        """Imports a fresh copy of app.py — each call is like a server restart."""
+        AppVideoStorageTests._instances += 1
+        name = f"app_under_test_{AppVideoStorageTests._instances}"
+        spec = importlib.util.spec_from_file_location(name, self.root / "app.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        client = module.app.test_client()
+        r = client.post("/api/auth/login", json={"username": "tester", "password": "pw"})
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        return module, client
+
+    def assert_db_matches(self, app_module):
+        """The database holds exactly the app's in-memory records, field for field."""
+        db.close()  # read through a fresh connection, like a new process would
+        stored = db.load_all("videos")
+        self.assertEqual(set(stored), set(app_module.videos))
+        for vid, mem in app_module.videos.items():
+            diffs = {
+                k: {"db": stored[vid].get(k, "<missing>"), "app": mem.get(k, "<missing>")}
+                for k in set(mem) | set(stored[vid])
+                if stored[vid].get(k, "<missing>") != mem.get(k, "<missing>")
+            }
+            self.assertEqual(diffs, {}, f"video {vid} differs")
+
+    # ------------------------------------------------------------------
+
+    def test_first_start_imports_json(self):
+        app_module, client = self.start_app()
+        self.assertFalse((self.runs / "videos_index.json").exists())
+        self.assertTrue((self.runs / "videos_index.json.bak").exists())
+        self.assertEqual(app_module.videos, self.original)
+        self.assertEqual(len(client.get("/api/videos").get_json()), 80)
+        self.assert_db_matches(app_module)
+
+    def test_edits_are_saved_and_survive_restart(self):
+        app_module, client = self.start_app()
+        ids = list(self.original)
+
+        r = client.post(f"/api/videos/{ids[0]}/favorite", json={"favorited": True})
+        self.assertEqual(r.status_code, 200)
+        r = client.post(f"/api/videos/{ids[1]}/update",
+                        json={"notes": "Two kits 🦝", "count": 2, "temperature": "71°F"})
+        self.assertEqual(r.status_code, 200)
+        r = client.post(f"/api/videos/{ids[2]}/correct", json={"species": "blank"})
+        self.assertEqual(r.status_code, 200)
+        r = client.post(f"/api/videos/{ids[3]}/delete")
+        self.assertEqual(r.status_code, 200)
+        self.assert_db_matches(app_module)
+
+        restarted, _ = self.start_app()
+        v = restarted.videos
+        self.assertIs(v[ids[0]]["favorited"], True)
+        self.assertEqual((v[ids[1]]["notes"], v[ids[1]]["count"]), ("Two kits 🦝", 2))
+        self.assertIs(v[ids[1]]["metadata_edited"], True)
+        self.assertEqual(v[ids[2]]["corrected_species"], "blank")
+        self.assertEqual(v[ids[2]]["corrected_by"], "Test User")
+        self.assertNotIn(ids[3], v)
+        self.assertEqual(len(v), 79)
+
+    def test_bulk_actions(self):
+        app_module, client = self.start_app()
+        marked = sum(1 for x in self.original.values() if x["marked_for_review"])
+        r = client.post("/api/videos/clear-all-marks")
+        self.assertEqual(r.get_json()["cleared_count"], marked)
+        self.assertFalse(any(x["marked_for_review"] for x in app_module.videos.values()))
+        self.assert_db_matches(app_module)
+
+        # With every mark cleared, untouched blanks are now trash.
+        expected_trash = sum(1 for x in app_module.videos.values() if app_module._is_trash(x))
+        self.assertGreater(expected_trash, 0)
+        r = client.post("/api/storage/empty-trash")
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        self.assertEqual(r.get_json()["result"]["deleted_count"], expected_trash)
+        self.assert_db_matches(app_module)
+
+    def test_finished_job_adds_and_resyncs_videos(self):
+        app_module, _ = self.start_app()
+        job_id = "job_new"
+        out = self.runs / job_id / "predictions.json"
+        out.parent.mkdir()
+        out.write_text(json.dumps({
+            "classification_categories": {"0": "blank", "1": "aves;new;bird"},
+            "images": [
+                {"file": "NEW_0001.JPG", "detections": [
+                    {"conf": 0.9, "bbox": [0.3, 0.3, 0.2, 0.2], "classifications": [["1", 0.88]]}]},
+                {"file": "NEW_0002.JPG", "detections": []},
+            ],
+        }))
+        app_module.jobs[job_id] = {
+            "id": job_id, "folder": str(self.root / "media"), "status": "done",
+            "output_json": str(out), "ocr_config": "__skip__", "location": "Pond Overlook",
+        }
+        app_module.sync_videos_from_job(job_id)
+        new_id = app_module.video_id_for(job_id, "NEW_0001.JPG")
+        self.assertEqual(app_module.videos[new_id]["ai_species"], "aves;new;bird")
+        self.assertEqual(len(app_module.videos), 82)
+        self.assert_db_matches(app_module)
+
+        # Re-running the same job keeps human edits (and doesn't duplicate rows).
+        app_module.videos[new_id].update(
+            notes="keep me", corrected_species="aves;new;bird", corrected_by="Test User")
+        app_module.persist_videos([new_id])
+        app_module.sync_videos_from_job(job_id)
+        self.assertEqual(app_module.videos[new_id]["notes"], "keep me")
+        self.assertEqual(app_module.videos[new_id]["corrected_by"], "Test User")  # was being erased
+        self.assertEqual(len(app_module.videos), 82)
+        self.assert_db_matches(app_module)
+
+    def test_location_merge_updates_videos(self):
+        app_module, client = self.start_app()
+        r = client.post("/api/locations/merge", json={
+            "source_names": ["Pond Overlook", "Pine Flatwoods"], "target_name": "Pond Overlook",
+            "lat": 28.5946, "lon": -81.1987,
+        })
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        self.assertFalse(any(x["location"] == "Pine Flatwoods" for x in app_module.videos.values()))
+        self.assert_db_matches(app_module)
+
+
+if __name__ == "__main__":
+    unittest.main()
