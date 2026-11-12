@@ -82,7 +82,7 @@ class AppVideoStorageTests(AppTestCase):
         }))
         app_module.jobs[job_id] = {  # every field /api/run gives a job
             "id": job_id, "folder": str(self.root / "media"), "batch_id": None,
-            "display_name": "New card", "ocr_config": "__skip__", "location": "Pond Overlook",
+            "display_name": "New card", "ocr_config": "__skip_ocr__", "location": "Pond Overlook",
             "status": "done", "seq": 99, "started_at": None, "started_running_at": None,
             "finished_at": None, "output_json": str(out), "log_file": str(out.parent / "log.txt"),
             "cmd": [],

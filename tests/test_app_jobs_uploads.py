@@ -16,14 +16,11 @@ from tests.app_harness import AppTestCase
 
 
 class AppJobsUploadsLocationsTests(AppTestCase):
-    def test_first_start_imports_all_four_files(self):
+    def test_first_start_imports_jobs_uploads_locations(self):
         app_module, _ = self.start_app()
-        for name in ("videos_index.json", "jobs_index.json", "upload_batches_index.json", "locations.json"):
+        for name in ("jobs_index.json", "upload_batches_index.json", "locations.json"):
             self.assertFalse((self.runs / name).exists(), name)
             self.assertTrue((self.runs / f"{name}.bak").exists(), name)
-        # Not moved yet (step 5): still plain JSON.
-        for name in ("species_list.json", "users.json", "ocr_configs.json"):
-            self.assertTrue((self.runs / name).exists(), name)
 
         original_batches = json.loads((self.runs / "upload_batches_index.json.bak").read_text())
         self.assertEqual(app_module.upload_batches, original_batches)
@@ -63,7 +60,7 @@ class AppJobsUploadsLocationsTests(AppTestCase):
         # 3. Submit it as a job. SpeciesNet isn't installed here, so the job
         #    ends in "error" — what matters is every status change was saved.
         r = client.post("/api/run", json={
-            "batch_id": batch_id, "folder_name": "Test card", "ocr_config": "__skip__",
+            "batch_id": batch_id, "folder_name": "Test card", "ocr_config": "__skip_ocr__",
             "location": "Pond Overlook",
         })
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))

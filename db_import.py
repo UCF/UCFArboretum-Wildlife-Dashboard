@@ -218,6 +218,11 @@ def import_file(runs_dir, filename, dry_run=False):
 
     try:
         with db.transaction() as conn:
+            # Re-check now that we hold the write lock: another process (the
+            # server and manage_users.py can both import users.json) may have
+            # finished this same import while we were reading the file.
+            if conn.execute("SELECT 1 FROM migrations WHERE name = ?", (_marker(filename),)).fetchone():
+                return f"{filename}: already imported (by another process)"
             for table, rows in rows_by_table.items():
                 for row in rows:
                     db.upsert(table, row, conn=conn)
@@ -236,7 +241,10 @@ def import_file(runs_dir, filename, dry_run=False):
     except Exception as e:
         raise JsonImportError(f"{filename}: import failed and was rolled back ({e}). The file is unchanged.") from e
 
-    path.rename(_backup_path(path))
+    try:
+        path.rename(_backup_path(path))
+    except FileNotFoundError:
+        pass  # another process already renamed it
     return f"{filename}: imported {summary}; original kept as {path.name}.bak"
 
 

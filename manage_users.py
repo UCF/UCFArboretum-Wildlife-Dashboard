@@ -3,11 +3,15 @@ Manage accounts for the app's username+password sign-in.
 
 There is deliberately no sign-up flow in the app itself — accounts are
 added here, out of band, by whoever runs the server. Run this on the same
-machine (and with the same working directory) as app.py, since it writes
-directly to runs/users.json — the file app.py's /api/auth/login route
-reads on every login attempt (see load_users() in app.py). You can run
-this while the server is running; a newly-added account works immediately,
-no restart needed.
+machine as app.py, since it writes directly to the users table in
+runs/wildlife.db — the table app.py's /api/auth/login route reads on every
+login attempt (see get_user() in app.py). You can run this while the
+server is running; a newly-added account works immediately, no restart
+needed.
+
+If runs/users.json from before the SQLite switch is still there (the
+server hasn't been started on the new version yet), its accounts are
+imported first, exactly as the server would.
 
 Usage:
     python manage_users.py add <username> <first_name> <last_name>
@@ -18,24 +22,21 @@ Usage:
 """
 
 import getpass
-import json
 import sys
 from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
-USERS_FILE = Path(__file__).parent / "runs" / "users.json"
+import db
+import db_import
+
+RUNS_DIR = Path(__file__).parent / "runs"
 
 
-def load():
-    if USERS_FILE.exists():
-        return json.loads(USERS_FILE.read_text())
-    return {}
-
-
-def save(users):
-    USERS_FILE.parent.mkdir(exist_ok=True)
-    USERS_FILE.write_text(json.dumps(users, indent=2))
+def open_db():
+    """Opens runs/wildlife.db, importing a leftover users.json first if there is one."""
+    db.DB_PATH = RUNS_DIR / "wildlife.db"
+    db_import.import_sources(RUNS_DIR, ["users.json"], log=lambda msg: None)
 
 
 def cmd_add(args):
@@ -53,20 +54,21 @@ def cmd_add(args):
         print("Passwords didn't match.")
         sys.exit(1)
 
-    users = load()
-    is_update = username in users
-    users[username] = {
+    open_db()
+    is_update = db.get("users", username) is not None
+    db.upsert("users", {
+        "username": username,
         "password_hash": generate_password_hash(password),
         "first_name": first_name,
         "last_name": last_name,
-    }
-    save(users)
+    })
     verb = "Updated" if is_update else "Added"
     print(f"{verb} user '{username}' ({first_name} {last_name}).")
 
 
 def cmd_list(_args):
-    users = load()
+    open_db()
+    users = db.load_all("users")
     if not users:
         print("No users yet.")
         return
@@ -79,12 +81,10 @@ def cmd_remove(args):
         print("Usage: python manage_users.py remove <username>")
         sys.exit(1)
     username = args[0].strip().lower()
-    users = load()
-    if username not in users:
+    open_db()
+    if not db.delete("users", username):
         print(f"No such user: {username}")
         sys.exit(1)
-    del users[username]
-    save(users)
     print(f"Removed user '{username}'.")
 
 

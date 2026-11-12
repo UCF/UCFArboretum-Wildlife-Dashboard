@@ -28,7 +28,7 @@ except ImportError:
     HAVE_APP_DEPS = False
 
 REPO = Path(__file__).resolve().parent.parent
-APP_FILES = ["app.py", "bar_ocr.py", "db.py", "db_import.py"]
+APP_FILES = ["app.py", "bar_ocr.py", "db.py", "db_import.py", "manage_users.py"]
 
 
 @unittest.skipUnless(HAVE_APP_DEPS, "app dependencies (flask, opencv-python) not installed")
@@ -87,7 +87,7 @@ class AppTestCase(unittest.TestCase):
             self.assertEqual(diffs, {}, f"{label} {key} differs")
 
     def assert_db_matches(self, app_module):
-        """The database holds exactly the app's in-memory data, for every table moved to SQLite so far."""
+        """The database holds exactly the app's in-memory data, for every kind of data."""
         db.close()  # read through a fresh connection, like a new process would
         self.assert_same_records("video", db.load_all("videos"), app_module.videos)
         self.assert_same_records("job", db.load_all("jobs"), app_module.jobs)
@@ -96,6 +96,20 @@ class AppTestCase(unittest.TestCase):
             {n: {"lat": r["lat"], "lon": r["lon"]} for n, r in db.load_all("locations").items()},
             app_module.locations,
         )
+        self.assertEqual(sorted(db.load_all("species")), app_module.canonical_species)
+        self.assertEqual(
+            db.load_all("categories"),
+            {label: app_module._category_row(label, cfg) for label, cfg in app_module.category_settings.items()},
+        )
+        stored_storage = db.get_setting("storage")
+        if stored_storage is not None:  # None = never changed, app uses its built-in defaults
+            self.assertEqual(stored_storage, app_module.storage_settings)
+        self.assertEqual(
+            {name: {k: v for k, v in r.items() if k != "name"} for name, r in db.load_all("ocr_configs").items()},
+            app_module.ocr_configs,
+        )
+        self.assertEqual(db.get_setting("ocr_last_used"), app_module.ocr_last_used)
+        self.assertEqual(db.get_setting("ocr_disabled"), app_module.ocr_disabled)
 
     def wait_for_jobs_idle(self, app_module, timeout=60):
         """Waits until the app's worker has nothing queued or running."""

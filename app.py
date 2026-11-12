@@ -69,15 +69,10 @@ BAR_CROPS_DIR.mkdir(exist_ok=True)
 
 THUMBNAILS_DIR = RUNS_DIR / "thumbnails"
 THUMBNAILS_DIR.mkdir(exist_ok=True)
-SPECIES_LIST_FILE = RUNS_DIR / "species_list.json"
-OCR_CONFIGS_FILE = RUNS_DIR / "ocr_configs.json"
-USERS_FILE = RUNS_DIR / "users.json"
 
 # Per-category (display species) settings shared by every viewer — see the
 # "Category settings" section further down.
-CATEGORY_SETTINGS_FILE = RUNS_DIR / "category_settings.json"
 CATEGORY_COVERS_DIR = RUNS_DIR / "category_covers"
-STORAGE_SETTINGS_FILE = RUNS_DIR / "storage_settings.json"
 CATEGORY_COVERS_DIR.mkdir(exist_ok=True)
 
 # Signs the session cookie (Flask's session is just a signed, NOT encrypted,
@@ -226,25 +221,23 @@ running_processes = {}
 running_processes_lock = threading.Lock()
 
 
-def load_json(path, default):
-    if path.exists():
-        with open(path) as f:
-            return json.load(f)
-    return default
-
-
-def load_users():
+def get_user(username):
     """
-    username (lowercase) -> {"password_hash", "first_name", "last_name"}.
+    The account record {"password_hash", "first_name", "last_name"} for a
+    (lowercase) username, or None.
 
     Deliberately NOT cached in memory like jobs/videos/locations/etc: there's
-    no sign-up flow (see manage_users.py), so accounts are added by editing
-    users.json directly, typically via that script, possibly while the
-    server is already running. Re-reading the file on every login/identity
-    check is cheap (it's tiny) and means a newly-added account works
-    immediately instead of only after a restart.
+    no sign-up flow (see manage_users.py), so accounts are added by that
+    script — a separate process — possibly while the server is already
+    running. Reading the users table on every login/identity check is cheap
+    and means a newly-added account works immediately instead of only after
+    a restart.
     """
-    return load_json(USERS_FILE, {})
+    record = db.get("users", username)
+    if record is None:
+        return None
+    del record["username"]
+    return record
 
 
 def current_user():
@@ -254,7 +247,7 @@ def current_user():
     username = session.get("username")
     if not username:
         return None
-    return load_users().get(username)
+    return get_user(username)
 
 
 def login_required(view):
@@ -311,10 +304,11 @@ def persist_videos(video_ids):
     _persist_rows("videos", videos, videos_lock, video_ids)
 
 
-def save_species_list():
-    with species_lock:
-        with open(SPECIES_LIST_FILE, "w") as f:
-            json.dump(canonical_species, f, indent=2)
+def persist_species(labels):
+    """Adds these labels to the species table (the taxonomy only ever grows)."""
+    labels = list(labels)
+    if labels:
+        db.upsert_many("species", ({"label": label} for label in labels))
 
 
 def persist_locations(names):
@@ -323,16 +317,23 @@ def persist_locations(names):
                   to_row=lambda name, coords: {"name": name, "lat": coords["lat"], "lon": coords["lon"]})
 
 
-def save_category_settings():
-    with category_settings_lock:
-        with open(CATEGORY_SETTINGS_FILE, "w") as f:
-            json.dump(category_settings, f, indent=2)
+def _category_row(label, cfg):
+    return {
+        "label": label,
+        "private": bool(cfg.get("private")),
+        "cover": cfg.get("cover"),
+        "cover_version": cfg.get("cover_version", 0),
+    }
 
 
-def save_storage_settings():
+def persist_categories(labels):
+    """Saves these species groups' display settings to the database (see _persist_rows)."""
+    _persist_rows("categories", category_settings, category_settings_lock, labels, to_row=_category_row)
+
+
+def persist_storage_settings():
     with storage_settings_lock:
-        with open(STORAGE_SETTINGS_FILE, "w") as f:
-            json.dump(storage_settings, f, indent=2)
+        db.set_setting("storage", storage_settings)
 
 
 def persist_upload_batch(batch_id, files=None):
@@ -407,10 +408,21 @@ def _sanitize_relpath(raw):
     return name
 
 
-def save_ocr_configs():
-    with ocr_configs_lock:
-        with open(OCR_CONFIGS_FILE, "w") as f:
-            json.dump({"configs": ocr_configs, "last_used": ocr_last_used, "disabled": ocr_disabled}, f, indent=2)
+def _ocr_row(name, cfg):
+    return {"name": name, **cfg}
+
+
+def persist_ocr(preset_names=()):
+    """
+    Saves the OCR settings (last-used preset, globally disabled) plus the
+    named presets, all in one transaction. A name no longer in ocr_configs
+    is deleted.
+    """
+    with db.transaction() as conn:
+        _persist_rows("ocr_configs", ocr_configs, ocr_configs_lock, preset_names, to_row=_ocr_row)
+        with ocr_configs_lock:
+            db.set_setting("ocr_last_used", ocr_last_used, conn=conn)
+            db.set_setting("ocr_disabled", ocr_disabled, conn=conn)
 
 
 def load_ocr_configs():
@@ -424,38 +436,36 @@ def load_ocr_configs():
     nothing and make configuration explicit.)
     """
     global ocr_configs, ocr_last_used, ocr_disabled
-    loaded = load_json(OCR_CONFIGS_FILE, None)
-    if loaded is not None:
-        ocr_configs = loaded.get("configs", {})
-        ocr_last_used = loaded.get("last_used")
-        ocr_disabled = loaded.get("disabled", False)
+    ocr_configs = {name: {k: v for k, v in row.items() if k != "name"}
+                   for name, row in db.load_all("ocr_configs").items()}
+    _missing = object()
+    last_used = db.get_setting("ocr_last_used", _missing)
+    if last_used is _missing:  # never saved: fresh install
+        ocr_last_used = SKIP_OCR_VALUE
+        ocr_disabled = False
+        persist_ocr()
         return
-
-    ocr_configs = {}
-    ocr_last_used = SKIP_OCR_VALUE
-    ocr_disabled = False
-    save_ocr_configs()
+    ocr_last_used = last_used
+    ocr_disabled = bool(db.get_setting("ocr_disabled", False))
 
 
-# Library videos, jobs, upload batches and locations live in SQLite
-# (runs/wildlife.db, see db.py). The dicts below stay as in-memory copies
-# for fast reads; the persist_* functions write changes through to the
-# database. On the first start after each upgrade, the matching old JSON
-# file is imported once and renamed to <name>.json.bak.
+# All metadata lives in SQLite (runs/wildlife.db, see db.py). The dicts
+# below stay as in-memory copies for fast reads; the persist_* functions
+# write changes through to the database. (Users are the exception: read
+# from the database on each request, see get_user.) On the first start
+# after upgrading, each old runs/*.json file is imported once and renamed
+# to <name>.json.bak.
 db.DB_PATH = RUNS_DIR / "wildlife.db"
 db.init_db()
-db_import.import_sources(
-    RUNS_DIR,
-    ["videos_index.json", "jobs_index.json", "upload_batches_index.json", "locations.json"],
-    log=lambda msg: print(f"[db] {msg}", flush=True),
-)
+db_import.import_sources(RUNS_DIR, list(db_import.SOURCES), log=lambda msg: print(f"[db] {msg}", flush=True))
 videos = db.load_all("videos")
 jobs = db.load_all("jobs")
 upload_batches = _load_upload_batches()
 locations = {name: {"lat": r["lat"], "lon": r["lon"]} for name, r in db.load_all("locations").items()}
-canonical_species = load_json(SPECIES_LIST_FILE, [])
-category_settings = load_json(CATEGORY_SETTINGS_FILE, {})
-storage_settings.update(load_json(STORAGE_SETTINGS_FILE, {}))
+canonical_species = sorted(db.load_all("species"))
+category_settings = {label: {k: v for k, v in row.items() if k != "label"}
+                     for label, row in db.load_all("categories").items()}
+storage_settings.update(db.get_setting("storage", {}))
 load_ocr_configs()
 
 # (Defaults for records written before Date/Time/Count/review-flag etc.
@@ -464,8 +474,7 @@ load_ocr_configs()
 
 # One-time data migrations, each recorded by name in migrations.json once
 # applied so it never re-runs (and never undoes a later human edit).
-MIGRATIONS_FILE = RUNS_DIR / "migrations.json"
-_applied_migrations = set(load_json(MIGRATIONS_FILE, []))
+_applied_migrations = db.applied_migrations()
 
 if "blank_count_zero" not in _applied_migrations:
     # Blank clips used to get a machine-estimated count of 1. Reset those to
@@ -477,10 +486,9 @@ if "blank_count_zero" not in _applied_migrations:
         if not _v.get("ai_species") and not _v.get("corrected_species") and _v.get("count") == 1:
             _v["count"] = 0
             _migrated.append(_v["id"])
-    persist_videos(_migrated)
-    _applied_migrations.add("blank_count_zero")
-    with open(MIGRATIONS_FILE, "w") as _f:
-        json.dump(sorted(_applied_migrations), _f, indent=2)
+    with db.transaction() as _conn:  # the fix and its "done" record are saved together
+        persist_videos(_migrated)
+        db.mark_migration_applied("blank_count_zero", conn=_conn)
 
 if jobs:
     _seq_counter = max((j.get("seq", 0) for j in jobs.values()), default=0)
@@ -788,14 +796,13 @@ def sync_videos_from_job(job_id):
     # present in every job's output regardless of what that batch contained —
     # so any one job is enough to learn the complete species list.
     with species_lock:
-        changed = False
+        new_labels = []
         for label in class_cats.values():
-            if label not in canonical_species:
-                canonical_species.append(label)
-                changed = True
-    if changed:
+            if label not in canonical_species and label not in new_labels:
+                new_labels.append(label)
+        canonical_species.extend(new_labels)
         canonical_species.sort()
-        save_species_list()
+    persist_species(new_labels)
 
     synced_ids = []
     for img in data.get("images", []):
@@ -1071,7 +1078,7 @@ def login():
     username = (data.get("username") or "").strip().lower()
     password = data.get("password") or ""
 
-    user = load_users().get(username)
+    user = get_user(username)
     if not user or not check_password_hash(user["password_hash"], password):
         # Same message either way — confirming "that username doesn't
         # exist" vs. "wrong password" would let someone enumerate accounts.
@@ -1094,7 +1101,7 @@ def auth_me():
     username = session.get("username")
     if not username:
         return jsonify({"signed_in": False})
-    user = load_users().get(username)
+    user = get_user(username)
     if not user:
         # Account removed (manage_users.py) since this session was created.
         session.clear()
@@ -1412,7 +1419,7 @@ def run_job():
     elif ocr_config:
         with ocr_configs_lock:
             ocr_last_used = ocr_config
-        save_ocr_configs()
+        persist_ocr()
 
     job_id = uuid.uuid4().hex[:12]
     job_dir = RUNS_DIR / job_id
@@ -1479,7 +1486,7 @@ def set_ocr_disabled():
     global ocr_disabled
     with ocr_configs_lock:
         ocr_disabled = bool(data.get("disabled"))
-    save_ocr_configs()
+    persist_ocr()
     return jsonify({"disabled": ocr_disabled})
 
 
@@ -1524,7 +1531,7 @@ def save_ocr_config():
             "ref_height": clean_dim(data.get("ref_height")),
         }
         ocr_last_used = name
-    save_ocr_configs()
+    persist_ocr([name])
     return jsonify({"name": name})
 
 
@@ -1541,7 +1548,7 @@ def delete_ocr_config(name):
         del ocr_configs[name]
         if ocr_last_used == name:
             ocr_last_used = SKIP_OCR_VALUE
-    save_ocr_configs()
+    persist_ocr([name])
     return jsonify({"deleted": name})
 
 
@@ -1843,7 +1850,7 @@ def set_category_private():
         return jsonify({"error": "Unknown category"}), 404
     with category_settings_lock:
         category_settings.setdefault(label, {})["private"] = bool(data.get("private"))
-    save_category_settings()
+    persist_categories([label])
     return jsonify(_category_settings_response(label))
 
 
@@ -1883,7 +1890,7 @@ def upload_category_cover():
         cfg = category_settings.setdefault(label, {})
         cfg["cover"] = filename
         cfg["cover_version"] = cfg.get("cover_version", 0) + 1  # cache-buster for the cover URL
-    save_category_settings()
+    persist_categories([label])
     return jsonify(_category_settings_response(label))
 
 
@@ -1900,7 +1907,7 @@ def delete_category_cover():
             (CATEGORY_COVERS_DIR / filename).unlink()
         except FileNotFoundError:
             pass
-        save_category_settings()
+        persist_categories([label])
     return jsonify(_category_settings_response(label))
 
 
@@ -2589,7 +2596,7 @@ def maybe_auto_empty_trash():
             storage_settings["last_auto_empty"] = {
                 "at": datetime.now().isoformat(timespec="seconds"), **result,
             }
-        save_storage_settings()
+        persist_storage_settings()
     return result
 
 
@@ -2642,7 +2649,7 @@ def set_auto_empty():
         updates["auto_empty_threshold"] = threshold
     with storage_settings_lock:
         storage_settings.update(updates)
-    save_storage_settings()
+    persist_storage_settings()
     # Act right away if the drive is already past the line, rather than
     # waiting for the next job to finish.
     maybe_auto_empty_trash()

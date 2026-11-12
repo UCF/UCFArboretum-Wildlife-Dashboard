@@ -55,7 +55,7 @@ def make_sample(n_videos=60, seed=1):
             "folder": folder,
             "batch_id": batch_id,
             "display_name": f"SD card {j + 1}",
-            "ocr_config": "Browning 1080p" if j % 3 else "__skip__",
+            "ocr_config": "Browning 1080p" if j % 3 else "__skip_ocr__",
             "location": location,
             "status": status,
             "seq": j + 1,
