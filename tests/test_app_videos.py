@@ -11,88 +11,13 @@ Needs the app's own dependencies (flask, opencv, ...). Skipped without them.
     python -m unittest tests.test_app_videos -v
 """
 
-import importlib.util
 import json
-import shutil
-import sys
-import tempfile
 import unittest
-from pathlib import Path
 
-import db
-from tests.sample_data import write_sample
-
-try:
-    import cv2  # noqa: F401
-    import flask  # noqa: F401
-    from werkzeug.security import generate_password_hash
-    HAVE_APP_DEPS = True
-except ImportError:
-    HAVE_APP_DEPS = False
-
-REPO = Path(__file__).resolve().parent.parent
-APP_FILES = ["app.py", "bar_ocr.py", "db.py", "db_import.py"]
+from tests.app_harness import AppTestCase
 
 
-@unittest.skipUnless(HAVE_APP_DEPS, "app dependencies (flask, opencv-python) not installed")
-class AppVideoStorageTests(unittest.TestCase):
-    _instances = 0
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
-        for name in APP_FILES:
-            shutil.copy(REPO / name, self.root / name)
-        for folder in ("templates", "static"):
-            shutil.copytree(REPO / folder, self.root / folder)
-
-        self.runs = self.root / "runs"
-        write_sample(self.runs, n_videos=80)
-        # Every sample job finished, so the app's worker doesn't try to run SpeciesNet.
-        jobs = json.loads((self.runs / "jobs_index.json").read_text())
-        for j in jobs.values():
-            j["status"] = "done"
-        (self.runs / "jobs_index.json").write_text(json.dumps(jobs))
-        # A real password, so the tests can sign in.
-        (self.runs / "users.json").write_text(json.dumps({
-            "tester": {"password_hash": generate_password_hash("pw"), "first_name": "Test", "last_name": "User"},
-        }))
-        self.original = json.loads((self.runs / "videos_index.json").read_text())
-        self._orig_db_path = db.DB_PATH
-
-    def tearDown(self):
-        db.close()
-        db.DB_PATH = self._orig_db_path
-        self._tmp.cleanup()
-
-    def start_app(self):
-        """Imports a fresh copy of app.py — each call is like a server restart."""
-        AppVideoStorageTests._instances += 1
-        name = f"app_under_test_{AppVideoStorageTests._instances}"
-        spec = importlib.util.spec_from_file_location(name, self.root / "app.py")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
-        client = module.app.test_client()
-        r = client.post("/api/auth/login", json={"username": "tester", "password": "pw"})
-        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
-        return module, client
-
-    def assert_db_matches(self, app_module):
-        """The database holds exactly the app's in-memory records, field for field."""
-        db.close()  # read through a fresh connection, like a new process would
-        stored = db.load_all("videos")
-        self.assertEqual(set(stored), set(app_module.videos))
-        for vid, mem in app_module.videos.items():
-            diffs = {
-                k: {"db": stored[vid].get(k, "<missing>"), "app": mem.get(k, "<missing>")}
-                for k in set(mem) | set(stored[vid])
-                if stored[vid].get(k, "<missing>") != mem.get(k, "<missing>")
-            }
-            self.assertEqual(diffs, {}, f"video {vid} differs")
-
-    # ------------------------------------------------------------------
-
+class AppVideoStorageTests(AppTestCase):
     def test_first_start_imports_json(self):
         app_module, client = self.start_app()
         self.assertFalse((self.runs / "videos_index.json").exists())
@@ -155,10 +80,14 @@ class AppVideoStorageTests(unittest.TestCase):
                 {"file": "NEW_0002.JPG", "detections": []},
             ],
         }))
-        app_module.jobs[job_id] = {
-            "id": job_id, "folder": str(self.root / "media"), "status": "done",
-            "output_json": str(out), "ocr_config": "__skip__", "location": "Pond Overlook",
+        app_module.jobs[job_id] = {  # every field /api/run gives a job
+            "id": job_id, "folder": str(self.root / "media"), "batch_id": None,
+            "display_name": "New card", "ocr_config": "__skip__", "location": "Pond Overlook",
+            "status": "done", "seq": 99, "started_at": None, "started_running_at": None,
+            "finished_at": None, "output_json": str(out), "log_file": str(out.parent / "log.txt"),
+            "cmd": [],
         }
+        app_module.persist_jobs([job_id])
         app_module.sync_videos_from_job(job_id)
         new_id = app_module.video_id_for(job_id, "NEW_0001.JPG")
         self.assertEqual(app_module.videos[new_id]["ai_species"], "aves;new;bird")

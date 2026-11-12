@@ -69,10 +69,8 @@ BAR_CROPS_DIR.mkdir(exist_ok=True)
 
 THUMBNAILS_DIR = RUNS_DIR / "thumbnails"
 THUMBNAILS_DIR.mkdir(exist_ok=True)
-JOBS_INDEX_FILE = RUNS_DIR / "jobs_index.json"
 SPECIES_LIST_FILE = RUNS_DIR / "species_list.json"
 OCR_CONFIGS_FILE = RUNS_DIR / "ocr_configs.json"
-LOCATIONS_FILE = RUNS_DIR / "locations.json"
 USERS_FILE = RUNS_DIR / "users.json"
 
 # Per-category (display species) settings shared by every viewer — see the
@@ -113,7 +111,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 # its job's folder, same as it always has — see serve_media.
 UPLOADS_DIR = RUNS_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
-UPLOAD_BATCHES_FILE = RUNS_DIR / "upload_batches_index.json"
 
 # Must match UPLOAD_CHUNK_SIZE in static/script.js — the server writes each
 # chunk at `chunk_index * CHUNK_SIZE` inside the pre-sized destination file,
@@ -275,37 +272,43 @@ def login_required(view):
     return wrapped
 
 
-def save_jobs_index():
-    with jobs_lock:
-        with open(JOBS_INDEX_FILE, "w") as f:
-            json.dump(jobs, f, indent=2)
+def _persist_rows(table, cache, lock, keys, to_row=lambda key, record: record):
+    """
+    Writes the given entries of an in-memory cache (videos, jobs, locations)
+    to their database table: each key still in `cache` is saved (inserted or
+    updated), each key no longer there is deleted. Only these rows are
+    written, never the whole table.
+
+    All of them go in one transaction, so a batch is saved all-or-nothing.
+    `lock` (the cache's own lock) is held throughout, so two saves of the
+    same record can't reach the database out of order — the database always
+    ends up matching the in-memory copy.
+
+    Callers change the cache under its lock, release it, then call the
+    persist_* wrapper with the keys they touched (the locks aren't
+    reentrant).
+    """
+    keys = list(dict.fromkeys(keys))  # de-duplicate, keep order
+    if not keys:
+        return
+    with lock:
+        with db.transaction() as conn:
+            for key in keys:
+                record = cache.get(key)
+                if record is None:
+                    db.delete(table, key, conn=conn)
+                else:
+                    db.upsert(table, to_row(key, record), conn=conn)
+
+
+def persist_jobs(job_ids):
+    """Saves these jobs' in-memory state to the database (see _persist_rows)."""
+    _persist_rows("jobs", jobs, jobs_lock, job_ids)
 
 
 def persist_videos(video_ids):
-    """
-    Writes the given videos' current in-memory state to the database: each
-    id still in `videos` is saved (inserted or updated), each id no longer
-    there is deleted. Only these rows are written, not the whole library.
-
-    All of them go in one transaction, so a batch (a finished job, a bulk
-    clear) is saved all-or-nothing. videos_lock is held throughout, so two
-    saves of the same record can't reach the database out of order — the
-    database always ends up matching the in-memory copy.
-
-    Callers change `videos` under videos_lock, release it, then call this
-    with the ids they touched (videos_lock isn't reentrant).
-    """
-    ids = list(dict.fromkeys(video_ids))  # de-duplicate, keep order
-    if not ids:
-        return
-    with videos_lock:
-        with db.transaction() as conn:
-            for vid in ids:
-                record = videos.get(vid)
-                if record is None:
-                    db.delete("videos", vid, conn=conn)
-                else:
-                    db.upsert("videos", record, conn=conn)
+    """Saves these videos' in-memory state to the database (see _persist_rows)."""
+    _persist_rows("videos", videos, videos_lock, video_ids)
 
 
 def save_species_list():
@@ -314,10 +317,10 @@ def save_species_list():
             json.dump(canonical_species, f, indent=2)
 
 
-def save_locations():
-    with locations_lock:
-        with open(LOCATIONS_FILE, "w") as f:
-            json.dump(locations, f, indent=2)
+def persist_locations(names):
+    """Saves these locations' in-memory state to the database (see _persist_rows)."""
+    _persist_rows("locations", locations, locations_lock, names,
+                  to_row=lambda name, coords: {"name": name, "lat": coords["lat"], "lon": coords["lon"]})
 
 
 def save_category_settings():
@@ -332,10 +335,57 @@ def save_storage_settings():
             json.dump(storage_settings, f, indent=2)
 
 
-def save_upload_batches():
+def persist_upload_batch(batch_id, files=None):
+    """
+    Saves one upload batch's in-memory state to the database. A batch is
+    stored as one upload_batches row plus one upload_batch_files row per
+    file (see db.py).
+
+    files=None rewrites the batch and ALL its file rows (new batch, file
+    list changed). Passing specific file names saves just those file rows —
+    used per uploaded chunk, so a chunk landing in a 500-file batch writes
+    one small row instead of the whole manifest. A batch no longer in
+    `upload_batches` is deleted, file rows included (ON DELETE CASCADE).
+    Same locking rules as _persist_rows.
+    """
     with upload_batches_lock:
-        with open(UPLOAD_BATCHES_FILE, "w") as f:
-            json.dump(upload_batches, f, indent=2)
+        with db.transaction() as conn:
+            manifest = upload_batches.get(batch_id)
+            if manifest is None:
+                db.delete("upload_batches", batch_id, conn=conn)
+                return
+            db.upsert("upload_batches", {
+                "id": batch_id,
+                "status": manifest["status"],
+                "created_at": manifest.get("created_at"),
+                "updated_at": manifest.get("updated_at"),
+            }, conn=conn)
+            if files is None:
+                conn.execute("DELETE FROM upload_batch_files WHERE batch_id = ?", (batch_id,))
+                files = list(manifest["files"])
+            for rel in files:
+                entry = manifest["files"][rel]
+                db.upsert("upload_batch_files", {
+                    "batch_id": batch_id, "rel_path": rel, "size": entry["size"],
+                    "expected_chunks": entry["expected_chunks"],
+                    "received_chunks": entry["received_chunks"],
+                }, conn=conn)
+
+
+def _load_upload_batches():
+    """Rebuilds the in-memory {batch_id: {..., "files": {rel: {...}}}} shape from the two tables."""
+    batches = {}
+    for batch_id, row in db.load_all("upload_batches").items():
+        batches[batch_id] = {
+            "status": row["status"], "created_at": row["created_at"],
+            "updated_at": row["updated_at"], "files": {},
+        }
+    for (batch_id, rel), row in db.load_all("upload_batch_files").items():
+        batches[batch_id]["files"][rel] = {
+            "size": row["size"], "expected_chunks": row["expected_chunks"],
+            "received_chunks": row["received_chunks"],
+        }
+    return batches
 
 
 def _sanitize_relpath(raw):
@@ -387,18 +437,23 @@ def load_ocr_configs():
     save_ocr_configs()
 
 
-jobs = load_json(JOBS_INDEX_FILE, {})
-# Library records live in SQLite (runs/wildlife.db, see db.py). `videos`
-# stays as an in-memory copy for fast reads; persist_videos() writes changes
-# through to the database. On the first start after upgrading, the old
-# videos_index.json is imported once and renamed to videos_index.json.bak.
+# Library videos, jobs, upload batches and locations live in SQLite
+# (runs/wildlife.db, see db.py). The dicts below stay as in-memory copies
+# for fast reads; the persist_* functions write changes through to the
+# database. On the first start after each upgrade, the matching old JSON
+# file is imported once and renamed to <name>.json.bak.
 db.DB_PATH = RUNS_DIR / "wildlife.db"
 db.init_db()
-db_import.import_sources(RUNS_DIR, ["videos_index.json"], log=lambda msg: print(f"[db] {msg}", flush=True))
+db_import.import_sources(
+    RUNS_DIR,
+    ["videos_index.json", "jobs_index.json", "upload_batches_index.json", "locations.json"],
+    log=lambda msg: print(f"[db] {msg}", flush=True),
+)
 videos = db.load_all("videos")
-locations = load_json(LOCATIONS_FILE, {})
+jobs = db.load_all("jobs")
+upload_batches = _load_upload_batches()
+locations = {name: {"lat": r["lat"], "lon": r["lon"]} for name, r in db.load_all("locations").items()}
 canonical_species = load_json(SPECIES_LIST_FILE, [])
-upload_batches = load_json(UPLOAD_BATCHES_FILE, {})
 category_settings = load_json(CATEGORY_SETTINGS_FILE, {})
 storage_settings.update(load_json(STORAGE_SETTINGS_FILE, {}))
 load_ocr_configs()
@@ -437,6 +492,7 @@ for _job in sorted(jobs.values(), key=lambda j: j.get("seq", 0)):
     if _job["status"] in ("running", "queued"):
         _job["status"] = "queued"
         job_queue.append(_job["id"])
+persist_jobs(job_queue)
 
 
 def _scale_box(box, ref_width, ref_height, frame_width, frame_height):
@@ -881,7 +937,7 @@ def _cleanup_batch_for_job(job_id):
         return
     with upload_batches_lock:
         upload_batches.pop(batch_id, None)
-    save_upload_batches()
+    persist_upload_batch(batch_id)
     shutil.rmtree(UPLOADS_DIR / batch_id, ignore_errors=True)
 
 
@@ -901,7 +957,7 @@ def _execute_job(job_id):
         job["started_running_at"] = datetime.now().isoformat(timespec="seconds")
         cmd = job["cmd"]
         log_file = Path(job["log_file"])
-    save_jobs_index()
+    persist_jobs([job_id])
 
     try:
         with open(log_file, "w") as log:
@@ -927,7 +983,7 @@ def _execute_job(job_id):
     with jobs_lock:
         jobs[job_id]["status"] = status
         jobs[job_id]["finished_at"] = datetime.now().isoformat(timespec="seconds")
-    save_jobs_index()
+    persist_jobs([job_id])
 
     if status == "done":
         sync_videos_from_job(job_id)
@@ -1231,7 +1287,7 @@ def init_upload_batch():
                 "size": size, "expected_chunks": expected_chunks, "received_chunks": [],
             }
             received[rel] = []
-    save_upload_batches()
+    persist_upload_batch(batch_id)
 
     return jsonify({"batch_id": batch_id, "folder": str(batch_dir), "received": received})
 
@@ -1284,7 +1340,7 @@ def upload_chunk(batch_id):
         if chunk_index not in file_entry["received_chunks"]:
             file_entry["received_chunks"].append(chunk_index)
         file_complete = len(file_entry["received_chunks"]) >= file_entry["expected_chunks"]
-    save_upload_batches()
+    persist_upload_batch(batch_id, files=[rel])
 
     return jsonify({"ok": True, "file_complete": file_complete})
 
@@ -1307,7 +1363,7 @@ def delete_upload_batch(batch_id):
         if manifest["status"] != "uploading":
             return jsonify({"error": f"Upload is already {manifest['status']} — cancel the job instead"}), 400
         del upload_batches[batch_id]
-    save_upload_batches()
+    persist_upload_batch(batch_id)
     shutil.rmtree(UPLOADS_DIR / batch_id, ignore_errors=True)
     return jsonify({"deleted": batch_id})
 
@@ -1386,11 +1442,11 @@ def run_job():
             "log_file": str(log_file),
             "cmd": cmd,
         }
-    save_jobs_index()
+    persist_jobs([job_id])
 
     with upload_batches_lock:
         upload_batches[batch_id]["status"] = "processing"
-    save_upload_batches()
+    persist_upload_batch(batch_id, files=[])
 
     with queue_cv:
         job_queue.append(job_id)
@@ -1676,7 +1732,7 @@ def cancel_job(job_id):
                 status = jobs[job_id]["status"]  # it started running in the meantime — fall through below
 
         if still_queued:
-            save_jobs_index()  # called AFTER releasing jobs_lock — save_jobs_index acquires it itself
+            persist_jobs([job_id])  # called AFTER releasing jobs_lock — persist_jobs acquires it itself
             _cleanup_batch_for_job(job_id)
             return jsonify({"status": "cancelled"})
 
@@ -1687,7 +1743,7 @@ def cancel_job(job_id):
             return jsonify({"error": "Job is running but has no process handle (may be finishing up)"}), 409
         with jobs_lock:
             jobs[job_id]["status"] = "cancelling"
-        save_jobs_index()
+        persist_jobs([job_id])
         threading.Thread(target=_terminate_then_kill, args=(proc,), daemon=True).start()
         return jsonify({"status": "cancelling"})
 
@@ -1936,7 +1992,7 @@ def delete_location():
         if name not in locations:
             return jsonify({"error": f"Unknown location: {name}"}), 404
         del locations[name]
-    save_locations()
+    persist_locations([name])
 
     with videos_lock:
         still_referencing = sum(1 for v in videos.values() if v.get("location") == name)
@@ -1997,7 +2053,7 @@ def merge_locations():
             if name != target_name:
                 locations.pop(name, None)
         locations[target_name] = {"lat": lat, "lon": lon}
-    save_locations()
+    persist_locations(list(source_set) + [target_name])
 
     # Diel period is derived from the location's coordinates, so moving or
     # renaming a location makes it stale for every entry filed there.
@@ -2159,8 +2215,7 @@ def commit_locations_csv():
             locations[name] = {"lat": lat, "lon": lon}
         imported_names.append(name)
 
-    if imported_names:
-        save_locations()
+    persist_locations(imported_names)
 
     return jsonify({
         "imported_count": len(imported_names),
@@ -2508,7 +2563,8 @@ def empty_trash():
             with upload_batches_lock:
                 for batch_id in emptied_batches:
                     upload_batches.pop(batch_id, None)
-            save_upload_batches()
+            for batch_id in emptied_batches:
+                persist_upload_batch(batch_id)
 
     return {
         "deleted_count": len(removed) - len(failed),
