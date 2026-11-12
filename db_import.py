@@ -20,6 +20,7 @@ hand on a COPY of a runs/ folder:
 
     python db_import.py /path/to/runs_copy --dry-run   # report only, changes nothing
     python db_import.py /path/to/runs_copy             # import everything
+    python db_import.py /path/to/runs_copy --verify    # then check every record came across exactly
 """
 
 import argparse
@@ -255,11 +256,74 @@ def import_sources(runs_dir, filenames, dry_run=False, log=print):
         log(import_file(runs_dir, filename, dry_run=dry_run))
 
 
+def verify_file(runs_dir, filename):
+    """
+    Compares an imported file's original (<name>.json.bak) against the
+    database, record by record and field by field, using the same
+    conversion as the import. Returns a list of problems (empty = exact).
+
+    Meant to be run right after an import, before anyone edits anything —
+    once the app is in use, the database legitimately moves on from the
+    original file.
+    """
+    bak = Path(runs_dir) / f"{filename}.bak"
+    if not bak.exists():
+        return []  # nothing was imported from this file (e.g. fresh install)
+    data = json.loads(bak.read_text(encoding="utf-8"))
+    rows_by_table, settings, _ = SOURCES[filename](data)
+    problems = []
+    for table, rows in rows_by_table.items():
+        stored = db.load_all(table)
+        for row in rows:
+            key = db._key_value(table, row)
+            got = stored.get(key)
+            if got is None:
+                problems.append(f"{filename}: {table} {key!r} is missing from the database")
+                continue
+            for field, value in row.items():
+                if got.get(field) != value:
+                    problems.append(
+                        f"{filename}: {table} {key!r} field {field!r}: "
+                        f"file has {value!r}, database has {got.get(field)!r}"
+                    )
+        extra = set(stored) - {db._key_value(table, r) for r in rows}
+        if extra:
+            problems.append(f"{filename}: {table} has {len(extra)} row(s) not in the file, e.g. {sorted(extra)[:3]}")
+    for key, value in settings.items():
+        if db.get_setting(key) != value:
+            problems.append(f"{filename}: setting {key!r}: file has {value!r}, database has {db.get_setting(key)!r}")
+    if filename == "migrations.json":
+        missing = set(data) - db.applied_migrations()
+        if missing:
+            problems.append(f"{filename}: migrations not recorded: {sorted(missing)}")
+    return problems
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("runs_dir", type=Path, help="folder holding the *.json files (the database is created here too)")
-    parser.add_argument("--dry-run", action="store_true", help="report what would be imported; change nothing")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="report what would be imported; change nothing")
+    mode.add_argument("--verify", action="store_true",
+                      help="after an import: compare every record in the .bak files with the database")
     args = parser.parse_args(argv)
+
+    if args.verify:
+        db.DB_PATH = args.runs_dir / "wildlife.db"
+        if not db.DB_PATH.exists():
+            print(f"ERROR: no database at {db.DB_PATH}; import first", file=sys.stderr)
+            return 1
+        problems = []
+        for filename in SOURCES:
+            found = verify_file(args.runs_dir, filename)
+            print(f"{filename}: {'OK' if not found else f'{len(found)} problem(s)'}")
+            problems += found
+        for line in problems[:50]:
+            print(f"  {line}")
+        if len(problems) > 50:
+            print(f"  ... and {len(problems) - 50} more")
+        print("VERIFIED: every record matches." if not problems else f"MISMATCHES: {len(problems)}")
+        return 0 if not problems else 1
 
     db.DB_PATH = args.runs_dir / "wildlife.db"
     if args.dry_run and not db.DB_PATH.exists():

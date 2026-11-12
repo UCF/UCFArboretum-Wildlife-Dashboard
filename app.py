@@ -45,6 +45,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import traceback
 import uuid
 from datetime import datetime, timedelta
 from functools import wraps
@@ -954,7 +955,45 @@ def worker_loop():
             while not job_queue:
                 queue_cv.wait()
             job_id = job_queue.popleft()
-        _execute_job(job_id)
+        try:
+            _execute_job(job_id)
+        except Exception:
+            # Nothing a single job does may kill this thread: it's the only
+            # worker, so every later job would sit "queued" forever and this
+            # one would show "running" until the server restarted.
+            details = traceback.format_exc()
+            print(f"[worker] job {job_id} failed unexpectedly:\n{details}", file=sys.stderr, flush=True)
+            _mark_job_failed(job_id, details)
+
+
+def _append_job_log(log_file, text):
+    """Appends to a job's log; if that's impossible (its folder is gone,
+    disk full, ...), writes to the server log instead of raising."""
+    try:
+        with open(log_file, "a") as log:
+            log.write(text)
+    except OSError as e:
+        print(f"[worker] couldn't write to {log_file} ({e}): {text.strip()}", file=sys.stderr, flush=True)
+
+
+def _mark_job_failed(job_id, details):
+    """Records an unexpected failure: status "error" (unless the job was
+    already cancelled/errored), and the traceback in its log."""
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if job is None:
+            return
+        log_file = job.get("log_file")
+        if job["status"] not in ("cancelled", "error"):
+            job["status"] = "error"
+            job["finished_at"] = datetime.now().isoformat(timespec="seconds")
+    if log_file:
+        _append_job_log(log_file, f"\nUnexpected error while processing this job:\n{details}")
+    try:
+        persist_jobs([job_id])
+    except Exception:
+        print(f"[worker] couldn't save job {job_id}'s error status:\n{traceback.format_exc()}",
+              file=sys.stderr, flush=True)
 
 
 def _execute_job(job_id):
@@ -984,8 +1023,7 @@ def _execute_job(job_id):
         with running_processes_lock:
             running_processes.pop(job_id, None)
         status = "error"
-        with open(log_file, "a") as log:
-            log.write(f"\nException while running job: {e}\n")
+        _append_job_log(log_file, f"\nException while running job: {e}\n")
 
     with jobs_lock:
         jobs[job_id]["status"] = status

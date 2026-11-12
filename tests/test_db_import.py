@@ -179,5 +179,35 @@ class FailureTests(ImportTestCase):
         self.assertTrue((self.runs / "locations.json.bak").exists())
 
 
+class VerifyTests(ImportTestCase):
+    def cli(self, *args):
+        db.close()
+        with redirect_stdout(io.StringIO()) as out:
+            code = db_import.main([str(self.runs), *args])
+        return code, out.getvalue()
+
+    def test_verify_passes_after_clean_import(self):
+        code, out = self.cli()
+        self.assertEqual(code, 0, out)
+        code, out = self.cli("--verify")
+        self.assertEqual(code, 0, out)
+        self.assertIn("VERIFIED", out)
+
+    def test_verify_names_a_changed_field(self):
+        self.cli()
+        v = next(iter(self.sample["videos_index.json"].values()))
+        db.upsert("videos", {**v, "notes": "changed after import"})
+        code, out = self.cli("--verify")
+        self.assertEqual(code, 1)
+        self.assertIn(f"videos {v['id']!r} field 'notes'", out)
+
+    def test_verify_names_a_missing_record(self):
+        self.cli()
+        db.delete("locations", "Pond Overlook")
+        code, out = self.cli("--verify")
+        self.assertEqual(code, 1)
+        self.assertIn("locations 'Pond Overlook' is missing", out)
+
+
 if __name__ == "__main__":
     unittest.main()

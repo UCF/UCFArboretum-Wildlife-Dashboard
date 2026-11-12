@@ -9,6 +9,7 @@ app after each step and across restarts.
 
 import io
 import json
+import sys
 import unittest
 
 import db
@@ -57,15 +58,17 @@ class AppJobsUploadsLocationsTests(AppTestCase):
         }, content_type="multipart/form-data")
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
 
-        # 3. Submit it as a job. SpeciesNet isn't installed here, so the job
-        #    ends in "error" — what matters is every status change was saved.
-        r = client.post("/api/run", json={
-            "batch_id": batch_id, "folder_name": "Test card", "ocr_config": "__skip_ocr__",
-            "location": "Pond Overlook",
-        })
-        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
-        self.assertEqual(app_module.upload_batches[batch_id]["status"], "processing")
-        self.wait_for_jobs_idle(app_module)
+        # 3. Submit it as a job, with a stand-in for SpeciesNet that writes no
+        #    output — so the job ends "done" or "error" depending on the
+        #    machine; what matters is every status change was saved.
+        with self.fake_speciesnet():
+            r = client.post("/api/run", json={
+                "batch_id": batch_id, "folder_name": "Test card", "ocr_config": "__skip_ocr__",
+                "location": "Pond Overlook",
+            })
+            self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+            self.assertEqual(app_module.upload_batches[batch_id]["status"], "processing")
+            self.wait_for_jobs_idle(app_module)
         new_jobs = [j for j in app_module.jobs.values() if j.get("batch_id") == batch_id]
         self.assertEqual(len(new_jobs), 1)
         self.assertIn(new_jobs[0]["status"], ("done", "error"))
@@ -98,8 +101,9 @@ class AppJobsUploadsLocationsTests(AppTestCase):
         jobs[stuck_id]["output_json"] = str(job_dir / "predictions.json")
         (self.runs / "jobs_index.json").write_text(json.dumps(jobs))
 
-        app_module, _ = self.start_app()
-        self.wait_for_jobs_idle(app_module)  # the worker picks it back up and finishes it
+        with self.fake_speciesnet():
+            app_module, _ = self.start_app()
+            self.wait_for_jobs_idle(app_module)  # the worker picks it back up and finishes it
         self.assertNotIn(app_module.jobs[stuck_id]["status"], ("running", "queued"))
         self.assert_db_matches(app_module)
 
@@ -122,6 +126,54 @@ class AppJobsUploadsLocationsTests(AppTestCase):
         restarted, _ = self.start_app()
         self.assertEqual(set(restarted.locations), {"Pond Overlook", "Pine Flatwoods", "Lake Claire"})
         self.assertEqual(restarted.locations["Lake Claire"], {"lat": 28.6011, "lon": -81.2003})
+
+
+    # --- the job worker must survive any one job failing -----------------
+
+    def enqueue_job(self, app_module, job_id, *, log_dir_exists=True, predictions=None):
+        """Queues a job whose command succeeds instantly (no SpeciesNet needed)."""
+        job_dir = self.runs / job_id
+        if log_dir_exists:
+            job_dir.mkdir()
+        output_json = job_dir / "predictions.json"
+        if predictions is not None:
+            output_json.write_text(predictions)
+        with app_module.jobs_lock:
+            app_module.jobs[job_id] = {
+                "id": job_id, "folder": str(self.root / "media"), "batch_id": None,
+                "display_name": job_id, "ocr_config": "__skip_ocr__", "location": "Pond Overlook",
+                "status": "queued", "seq": 1000 + len(app_module.jobs), "started_at": None,
+                "started_running_at": None, "finished_at": None, "output_json": str(output_json),
+                "log_file": str(job_dir / "log.txt"), "cmd": [sys.executable, "-c", "pass"],
+            }
+        app_module.persist_jobs([job_id])
+        with app_module.queue_cv:
+            app_module.job_queue.append(job_id)
+            app_module.queue_cv.notify()
+
+    def test_worker_survives_missing_log_folder(self):
+        app_module, _ = self.start_app()
+        self.enqueue_job(app_module, "job_no_log_dir", log_dir_exists=False)
+        self.enqueue_job(app_module, "job_after", predictions='{"images": []}')
+        self.wait_for_jobs_idle(app_module, timeout=20)
+        self.assertEqual(app_module.jobs["job_no_log_dir"]["status"], "error")
+        self.assertEqual(app_module.jobs["job_after"]["status"], "done")  # the worker kept going
+        self.assertTrue(app_module.worker_thread.is_alive())
+        self.assert_db_matches(app_module)
+
+    def test_worker_survives_failure_after_job_finishes(self):
+        # The command succeeds, but its output is corrupt, so adding the
+        # results to the Library fails. That used to kill the worker too.
+        app_module, _ = self.start_app()
+        self.enqueue_job(app_module, "job_bad_output", predictions='{"images": [')
+        self.enqueue_job(app_module, "job_after", predictions='{"images": []}')
+        self.wait_for_jobs_idle(app_module, timeout=20)
+        self.assertEqual(app_module.jobs["job_bad_output"]["status"], "error")
+        log = (self.runs / "job_bad_output" / "log.txt").read_text()
+        self.assertIn("Unexpected error while processing this job", log)
+        self.assertEqual(app_module.jobs["job_after"]["status"], "done")
+        self.assertTrue(app_module.worker_thread.is_alive())
+        self.assert_db_matches(app_module)
 
 
 if __name__ == "__main__":

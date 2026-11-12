@@ -122,7 +122,7 @@ Upload tab → folder + location submitted → job queued → single worker thre
 - **Backend:** Flask (`app.py`), single background worker thread processing a FIFO job queue.
 - **Detection:** Google's [MegaDetector + SpeciesNet](https://github.com/google/cameratrapai) pipeline, run as a subprocess per submitted folder.
 - **OCR:** `bar_ocr.py` — Tesseract on the info-bar region defined by the active preset.
-- **Storage:** JSON under `runs/` — no database. Media files themselves are never touched; only the metadata pointing at them.
+- **Storage:** a SQLite database, `runs/wildlife.db` (see [Data storage](#data-storage)). Media files themselves are never touched; only the metadata pointing at them.
 - **Frontend:** vanilla HTML/CSS/JS, no build step.
 
 ## Setup
@@ -138,6 +138,12 @@ Python wrapper around it):
 - **Linux:** `apt install tesseract-ocr`
 
 ### Running
+
+Run the tests first if you've changed anything (no extra packages needed;
+the end-to-end ones are skipped if Flask/OpenCV aren't installed):
+```bash
+python -m unittest discover tests
+```
 
 Development:
 ```bash
@@ -161,19 +167,22 @@ gunicorn -c gunicorn.conf.py wsgi:app
 ```
 app.py                Flask backend: job queue, library, all API routes
 bar_ocr.py            OCR pipeline for the camera's burned-in info bar
+db.py                 SQLite schema and read/write helpers
+db_import.py          One-time import of the old runs/*.json files
+manage_users.py       Add/list/remove sign-in accounts
 wsgi.py               WSGI entry point for Gunicorn
 gunicorn.conf.py      Production server config (see the single-worker warning)
 requirements.txt      Python dependencies
 templates/index.html  Single-page frontend
 static/script.js      All frontend logic
 static/style.css      Styling
-runs/                 Job outputs + metadata stores (gitignored):
-                        jobs_index.json, videos_index.json,
-                        species_list.json, locations.json,
-                        ocr_configs.json, storage_settings.json,
-                        bar_crops/, thumbnails/,
-                        upload_batches_index.json, uploads/ (uploaded
-                        videos — see "How folder upload works" below)
+tests/                Unit + end-to-end tests (python -m unittest discover tests)
+runs/                 Everything the app generates (gitignored):
+                        wildlife.db (+ -wal/-shm while running) — all metadata
+                        uploads/ (uploaded videos — see "How folder upload
+                        works" below), bar_crops/, thumbnails/,
+                        category_covers/, one folder per job (predictions.json,
+                        log), secret_key.txt
 ```
 
 ## How folder upload works
@@ -198,13 +207,15 @@ enough) instead of starting an upload that would fail partway through.
 
 ## Accounts
 
-Sign-in is username + password, checked against `runs/users.json` (gitignored, like the rest of `runs/`). There's no sign-up page — accounts are added on the server with:
+Sign-in is username + password, checked against the `users` table in `runs/wildlife.db` (gitignored, like the rest of `runs/`). There's no sign-up page — accounts are added on the server with:
 
 ```
 python manage_users.py add <username> <first_name> <last_name>   # prompts for a password
 python manage_users.py list
 python manage_users.py remove <username>
 ```
+
+`manage_users.py` works while the server is running; a new account can sign in immediately.
 
 Signing in is what lets someone correct a species — see `correct_species` in `app.py` — and the corrector's name (from their account, not anything the browser sends) is what "Verified by: ..." shows on that video afterward. Everything else (job submission, notes/count edits, favoriting) is still unauthenticated, same as before.
 
@@ -215,4 +226,61 @@ Signing in is what lets someone correct a species — see `correct_species` in `
 - OCR accuracy depends on the bar region being drawn accurately in the wizard — leave a few pixels of margin, since a crop clipping a character's edge is the most common cause of misreads.
 - The processing queue is single-worker by design (GPU memory safety); a large batch of folders processes sequentially.
 - Deleting a single entry only removes its metadata — if the same folder is reprocessed, it reappears as a fresh, unedited entry. Only Empty Trash deletes the video files themselves.
-- **JSON storage scales to roughly 10,000 entries.** Every save rewrites the whole file while holding a lock, so edits slow noticeably past that (~150ms at 10k, ~800ms at 50k), and the frontend refetches the full list on several actions. Moving the metadata to SQLite is the fix when it starts to bite.
+- **The whole Library is kept in memory and sent to the browser in full.** Saving is no longer the bottleneck (an edit writes one database row, under 1 ms at any size), but the frontend refetches the complete list on several actions, so very large libraries (tens of thousands of entries) will make those refreshes slow. Paging or filtering `/api/videos` in SQL is the fix if it starts to bite.
+
+## Data storage
+
+All metadata — Library entries, jobs, upload progress, locations, species
+list, OCR presets, settings and accounts — lives in one
+[SQLite](https://sqlite.org) database file, `runs/wildlife.db`. SQLite is
+built into Python; there's no database server to install or run. The schema
+(one table per kind of record, with comments on every column) is at the top
+of `db.py`.
+
+The app keeps an in-memory copy of most tables for fast reads and writes
+each change through to the database as it happens, one row at a time, in a
+transaction: a crash or a full disk mid-save leaves the previous data
+intact rather than a half-written file.
+
+**While the server runs** you'll also see `wildlife.db-wal` and
+`wildlife.db-shm` next to the database. They're SQLite's own working files
+— don't delete or move them separately from `wildlife.db`.
+
+**Backups.** Either stop the server and copy `runs/wildlife.db`, or take a
+consistent copy while it's running with:
+```bash
+python -c "import sqlite3; sqlite3.connect('runs/wildlife.db').backup(sqlite3.connect('wildlife-backup.db'))"
+```
+(Copying `wildlife.db` alone while the server is running can miss the most
+recent changes, which may still be in the `-wal` file.) The media in
+`runs/uploads/` isn't in the database and needs backing up separately.
+
+**Looking at the data.** [DB Browser for SQLite](https://sqlitebrowser.org)
+opens `wildlife.db` like a spreadsheet. Browse freely, but make changes
+through the app (or with the server stopped): the server holds its own
+in-memory copy and won't see edits made behind its back.
+
+**Upgrading from the JSON version.** Earlier versions stored everything as
+JSON files in `runs/`. The first time this version starts, it imports each
+of them (`videos_index.json`, `jobs_index.json`, `users.json`, …) and
+renames it to `<name>.json.bak`; the server log shows one `[db]` line per
+file with how many records came across. Each file is imported in a single
+transaction and only renamed once it's safely in the database, so an
+interrupted import simply resumes on the next start. To check what would be
+imported without changing anything, run on a **copy** of `runs/`:
+```bash
+python db_import.py /path/to/copy-of-runs --dry-run
+```
+To rehearse the whole import on that copy and then check that every record
+came across exactly, field by field:
+```bash
+python db_import.py /path/to/copy-of-runs
+python db_import.py /path/to/copy-of-runs --verify
+```
+Going back to an older JSON version means restoring a backup of `runs/`
+from before the upgrade — the old code can't read `wildlife.db`.
+
+**Schema changes** go in `db.py`: add the column to `SCHEMA` and `COLUMNS`,
+bump `SCHEMA_VERSION`, and add an upgrade step in `_upgrade_schema`. The
+importer and `db.upsert` refuse fields that have no column, so a new field
+can't be silently dropped.

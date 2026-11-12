@@ -7,14 +7,17 @@ Needs the app's own dependencies (flask, opencv, ...); tests using
 AppTestCase are skipped without them.
 """
 
+import contextlib
 import importlib.util
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import db
 from tests.sample_data import write_sample
@@ -110,6 +113,25 @@ class AppTestCase(unittest.TestCase):
         )
         self.assertEqual(db.get_setting("ocr_last_used"), app_module.ocr_last_used)
         self.assertEqual(db.get_setting("ocr_disabled"), app_module.ocr_disabled)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def fake_speciesnet():
+        """
+        While active, any job the app starts runs a do-nothing command that
+        exits successfully instead of MegaDetector/SpeciesNet. On a machine
+        where those are installed (the real server), tests would otherwise
+        start real GPU runs.
+        """
+        real_popen = subprocess.Popen
+
+        def popen(cmd, *args, **kwargs):
+            if any("speciesnet" in str(part) or "megadetector" in str(part) for part in cmd):
+                cmd = [sys.executable, "-c", "pass"]
+            return real_popen(cmd, *args, **kwargs)
+
+        with mock.patch("subprocess.Popen", side_effect=popen):
+            yield
 
     def wait_for_jobs_idle(self, app_module, timeout=60):
         """Waits until the app's worker has nothing queued or running."""
