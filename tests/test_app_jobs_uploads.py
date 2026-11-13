@@ -23,7 +23,7 @@ class AppJobsUploadsLocationsTests(AppTestCase):
             self.assertFalse((self.runs / name).exists(), name)
             self.assertTrue((self.runs / f"{name}.bak").exists(), name)
 
-        original_batches = json.loads((self.runs / "upload_batches_index.json.bak").read_text())
+        original_batches = json.loads((self.runs / "upload_batches_index.json.bak").read_text(encoding="utf-8"))
         self.assertEqual(app_module.upload_batches, original_batches)
         self.assertEqual(len(app_module.jobs), 4)
         self.assertEqual(set(app_module.locations), {"Pond Overlook", "Oak Hammock Trail", "Pine Flatwoods"})
@@ -91,7 +91,7 @@ class AppJobsUploadsLocationsTests(AppTestCase):
 
     def test_interrupted_job_is_requeued_and_saved(self):
         # Simulate a server that died mid-job: one job left "running" on disk.
-        jobs = json.loads((self.runs / "jobs_index.json").read_text())
+        jobs = json.loads((self.runs / "jobs_index.json").read_text(encoding="utf-8"))
         stuck_id = next(iter(jobs))
         jobs[stuck_id]["status"] = "running"
         # Real folders for its log/output, as a real job would have.

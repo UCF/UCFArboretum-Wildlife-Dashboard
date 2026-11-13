@@ -40,13 +40,13 @@ class AppSettingsUsersTests(AppTestCase):
         self.assertEqual(leftovers, [])
         self.assertEqual(sorted(p.name[:-4] for p in self.runs.glob("*.json.bak")), sorted(db_import.SOURCES))
 
-        sample_ocr = json.loads((self.runs / "ocr_configs.json.bak").read_text())
+        sample_ocr = json.loads((self.runs / "ocr_configs.json.bak").read_text(encoding="utf-8"))
         self.assertEqual(app_module.ocr_configs, sample_ocr["configs"])
         self.assertEqual(app_module.ocr_last_used, "Browning 1080p")
         self.assertEqual(app_module.storage_settings,
-                         json.loads((self.runs / "storage_settings.json.bak").read_text()))
+                         json.loads((self.runs / "storage_settings.json.bak").read_text(encoding="utf-8")))
         self.assertEqual(app_module.canonical_species,
-                         json.loads((self.runs / "species_list.json.bak").read_text()))
+                         json.loads((self.runs / "species_list.json.bak").read_text(encoding="utf-8")))
         self.assert_db_matches(app_module)
 
     def test_settings_edits_survive_restart(self):
@@ -91,7 +91,7 @@ class AppSettingsUsersTests(AppTestCase):
     def test_blank_count_migration_runs_once(self):
         # An install that never ran the blank-count fix, with one affected entry.
         (self.runs / "migrations.json").write_text("[]")
-        videos = json.loads((self.runs / "videos_index.json").read_text())
+        videos = json.loads((self.runs / "videos_index.json").read_text(encoding="utf-8"))
         blank_id = next(v for v in videos.values() if not v["ai_species"] and not v["corrected_species"])["id"]
         videos[blank_id]["count"] = 1
         (self.runs / "videos_index.json").write_text(json.dumps(videos))

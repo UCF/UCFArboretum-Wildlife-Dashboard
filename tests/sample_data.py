@@ -159,7 +159,7 @@ def write_sample(target_dir, n_videos=60):
     target = Path(target_dir)
     target.mkdir(parents=True, exist_ok=True)
     for name, contents in make_sample(n_videos).items():
-        (target / name).write_text(json.dumps(contents, indent=2, ensure_ascii=False))
+        (target / name).write_text(json.dumps(contents, indent=2, ensure_ascii=False), encoding="utf-8")
     return target
 
 

@@ -39,7 +39,9 @@ class AppTestCase(unittest.TestCase):
     _instances = 0
 
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        # ignore_cleanup_errors: on Windows the app's worker thread still has
+        # wildlife.db open at teardown, and Windows can't delete an open file.
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = Path(self._tmp.name)
         for name in APP_FILES:
             shutil.copy(REPO / name, self.root / name)
@@ -49,7 +51,7 @@ class AppTestCase(unittest.TestCase):
         self.runs = self.root / "runs"
         write_sample(self.runs, n_videos=80)
         # Every sample job finished, so the app's worker doesn't try to run SpeciesNet.
-        jobs = json.loads((self.runs / "jobs_index.json").read_text())
+        jobs = json.loads((self.runs / "jobs_index.json").read_text(encoding="utf-8"))
         for j in jobs.values():
             j["status"] = "done"
         (self.runs / "jobs_index.json").write_text(json.dumps(jobs))
@@ -57,7 +59,7 @@ class AppTestCase(unittest.TestCase):
         (self.runs / "users.json").write_text(json.dumps({
             "tester": {"password_hash": generate_password_hash("pw"), "first_name": "Test", "last_name": "User"},
         }))
-        self.original = json.loads((self.runs / "videos_index.json").read_text())
+        self.original = json.loads((self.runs / "videos_index.json").read_text(encoding="utf-8"))
         self._orig_db_path = db.DB_PATH
 
     def tearDown(self):
