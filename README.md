@@ -1,4 +1,6 @@
-# ArbCameraTrapCV
+**The repository is forked from https://github.com/cwsapp05/ArbCameraTrapCV.** For older tagged releases, refer to that repo.
+
+# Wildlife-Dashboard
 
 A trail camera triage tool built for the UCF Arboretum, combining automated
 species detection with metadata extraction to turn raw camera trap footage
