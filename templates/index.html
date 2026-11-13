@@ -13,10 +13,13 @@
      it as the `Waymark_L` global; on load it deliberately restores
      `window.L` to whatever it was before, so a bare `L` is NOT available
      here — use `Waymark_L`, or the Leaflet map instance at `viewer.map`.
-     jQuery is a hard requirement of Waymark and must load first. -->
-<link rel="stylesheet" href="https://www.ogis.org/waymark-js/dist/latest/css/waymark-js.min.css">
+     jQuery is a hard requirement of Waymark and must load first.
+     Pinned to the v1.2.13 tag via jsDelivr: ogis.org stopped hosting
+     dist/latest/ (now 404), and the npm 2.x/3.x releases are a rewrite
+     without the Waymark_Map_Factory API script.js uses. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/OpenGIS/Waymark-JS@v1.2.13/dist/css/waymark-js.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://www.ogis.org/waymark-js/dist/latest/js/waymark-js.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/OpenGIS/Waymark-JS@v1.2.13/dist/js/waymark-js.min.js"></script>
 </head>
 <body>
 
